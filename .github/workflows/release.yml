@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release (e.g. v0.2.0)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as pre-release"
+        required: false
+        type: boolean
+        default: false
+      draft:
+        description: "Create as draft"
+        required: false
+        type: boolean
+        default: false
+      upload_tos:
+        description: "Upload to Volcengine TOS"
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  release:
+    name: GoReleaser Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Verify tag exists
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh api "repos/${{ github.repository }}/git/ref/tags/${{ inputs.tag }}" --silent 2>/dev/null; then
+            echo "::error::Tag '${{ inputs.tag }}' does not exist. Create it first using the 'Create Tag' workflow."
+            exit 1
+          fi
+
+      - name: Checkout tag
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+
+      - name: Setup Go from go.mod
+        id: setup-go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install zip
+        run: sudo apt-get install -y zip
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: ~> v2
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GOVERSION: ${{ steps.setup-go.outputs.go-version }}
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+
+      - name: Apply release flags
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ inputs.tag }}" \
+            --draft=${{ inputs.draft }} \
+            --prerelease=${{ inputs.prerelease }}
+
+  upload-tos:
+    name: Upload to TOS
+    needs: release
+    if: ${{ inputs.upload_tos }}
+    uses: ./.github/workflows/upload-tos.yml
+    with:
+      tag: ${{ inputs.tag }}
+    secrets: inherit

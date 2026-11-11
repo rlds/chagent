@@ -1,0 +1,9 @@
+<system-reminder>
+来自以下文件的指令已更新：packages/app/AGENTS.md
+
+该文件内容已变更；以下内容替代此前从该文件加载的指令。
+
+# App 指令 v2
+
+- 新版本。
+</system-reminder>

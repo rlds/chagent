@@ -1,0 +1,148 @@
+{
+  "version": 2,
+  "model_list": [
+    {
+      "model_name": "glm",
+      "provider": "zhipu",
+      "model": "glm-5.3",
+      "api_base": "https://api.example.invalid/v1",
+      "api_key": "YOUR_API_KEY"
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "restrict_to_workspace": true,
+      "allow_read_outside_workspace": false,
+      "model_name": "glm",
+      "max_tokens": 32768,
+      "context_window": 131072,
+      "max_tool_iterations": 300,
+      "steering_mode": "all",
+      "max_parallel_turns": 20,
+      "workspace_context": {
+        "enabled": true,
+        "user_global": false,
+        "max_bytes": 32768,
+        "max_source_bytes": 1048576
+      },
+      "runtime_context": {
+        "mode": "snapshot",
+        "refresh_interval_seconds": 600,
+        "include_sender": true
+      },
+      "autonomy": {
+        "enabled": true,
+        "max_rounds": 20,
+        "no_progress_rounds": 3,
+        "round_delay_ms": 1000,
+        "resume_on_start": false,
+        "send_intermediate": false
+      }
+    }
+  },
+  "tools": {
+    "allow_read_paths": [],
+    "allow_write_paths": [],
+    "read_file": {
+      "enabled": true,
+      "mode": "bytes",
+      "max_read_file_size": 65536
+    },
+    "write_file": {
+      "enabled": true
+    },
+    "edit_file": {
+      "enabled": true
+    },
+    "append_file": {
+      "enabled": true
+    },
+    "list_dir": {
+      "enabled": true
+    },
+    "exec": {
+      "enabled": true,
+      "enable_deny_patterns": true,
+      "allow_remote": true,
+      "timeout_seconds": 60
+    },
+    "task": {
+      "enabled": true
+    },
+    "todo": {
+      "enabled": true
+    },
+    "skill_load": {
+      "enabled": true
+    },
+    "spawn": {
+      "enabled": true
+    },
+    "subagent": {
+      "enabled": true
+    },
+    "web": {
+      "enabled": false,
+      "provider": "auto",
+      "prefer_native": true,
+      "format": "plaintext"
+    },
+    "web_fetch": {
+      "enabled": false
+    },
+    "dsh": {
+      "enabled": true,
+      "fs_search": {
+        "enabled": true
+      },
+      "jobs": {
+        "enabled": true
+      },
+      "mcp_resources": {
+        "enabled": true
+      },
+      "session_query": {
+        "enabled": true
+      },
+      "subagent_control": {
+        "enabled": true
+      },
+      "goal": {
+        "enabled": true
+      }
+    }
+  },
+  "hooks": {
+    "enabled": true,
+    "defaults": {
+      "observer_timeout_ms": 500,
+      "interceptor_timeout_ms": 5000,
+      "approval_timeout_ms": 60000
+    },
+    "builtins": {},
+    "processes": {}
+  },
+  "events": {
+    "logging": {
+      "enabled": true,
+      "include": [
+        "agent.*",
+        "gateway.*",
+        "mcp.*"
+      ],
+      "exclude": [],
+      "min_severity": "info",
+      "include_payload": false
+    }
+  },
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 0,
+    "hot_reload": false,
+    "log_level": "warn"
+  },
+  "heartbeat": {
+    "enabled": true,
+    "interval": 30
+  }
+}

@@ -1,0 +1,71 @@
+# Binaries
+# Go build artifacts
+bin/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/chagent
+/chagent-test
+cmd/**/workspace
+.tmp
+.github
+
+# Chagent specific
+
+# Chagent
+.chagent/
+config.json
+sessions/
+build/
+vendor/
+# Coverage
+
+# Secrets & Config (keep templates, ignore actual secrets)
+.env
+config/config.json
+.security.yml
+onboard
+
+
+# Test
+coverage.txt
+coverage.html
+
+# OS
+.DS_Store
+
+# Ralph workspace
+ralph/
+.ralph/
+tasks/
+
+# Plans
+docs/plans/
+docs/superpowers/
+
+# Editors
+.vscode/
+.idea/
+
+# Added by goreleaser init:
+dist/
+*.vite/
+
+# Windows Application Icon/Resource
+*.syso
+.cache/
+_tmp_*
+
+.claude/
+
+.omc/
+.worktrees/
+
+__pycache__/
+
+# local root binaries
+/chagent

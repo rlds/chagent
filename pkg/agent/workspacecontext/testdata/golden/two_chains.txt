@@ -1,0 +1,15 @@
+<system-reminder>
+以下为工作区指令，必须遵循。更具体的指令优先；与 system、developer 或用户直接指令冲突时，以后者为准。
+
+来自以下文件的指令：~/.chagent/AGENTS.md
+
+# 用户级 Chagent 指令
+
+- 用户级规则适用于所有工作。
+
+来自以下文件的指令：AGENTS.md
+
+# 根指令
+
+- 始终使用中文回复。
+</system-reminder>
