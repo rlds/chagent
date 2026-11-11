@@ -6,6 +6,7 @@
 
 - [项目介绍](project/introduction.zh.md)：项目是什么、能力边界、快速上手、关键概念、与 chess 的契约
 - [项目状态（2026-11-02 快照）](project/status.zh.md)：HEAD/工作树状态、功能完成度、测试与验证结论、已知残余
+- [变更摘要（2026-11-11）](project/change-summary-2026-11-11.zh.md)：默认提示词任务/记忆/角色策略、任务板、工具开关兼容与工具清单核对
 - [重命名记录（PicoClaw → Chagent，不兼容旧名）](project/rename-to-chagent.zh.md)：名称映射、构建启动、外部对接修改
 
 ## 问题库
