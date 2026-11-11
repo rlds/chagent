@@ -879,6 +879,12 @@ type ToolsConfig struct {
 	// DSH 是独立的 DSH 工具组（glob/grep、jobs、MCP 资源、
 	// 会话查询、子代理控制、持久化目标）。参见 dsh_tools_config.go。
 	DSH DSHGroupConfig `json:"dsh" yaml:"-"`
+	// FlatToolAliases 兼容外部界面按工具名输出的扁平开关。
+	// 标准配置仍使用上面的分组字段；加载时由 ApplyFlatToolAliases 归一化。
+	FlatToolAliases
+	// delegateDisabled 由扁平 tools.delegate.enabled=false 设置，
+	// 不复用 JSON 字段，避免改变多 agent 下 delegate 自动注册的默认行为。
+	delegateDisabled bool
 }
 
 // IsFilterSensitiveDataEnabled 在启用敏感数据过滤时返回 true

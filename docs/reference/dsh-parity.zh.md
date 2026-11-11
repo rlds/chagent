@@ -21,12 +21,12 @@
 ## 0. 结论摘要
 
 - **DSH 默认启用约 40 个工具名**（base bundle + standard preset），另有约 20 个可选/实验工具。
-  chagent 保留 chess 基础 agent 所需的 **24 个静态工具（注册数）+ 2 个工具发现工具 + MCP 动态工具**；
-> 注意：24 为**注册数**；加入 DSH 工具组前 live 加载 18 个；本轮默认配置下核心实例约 21 个（+DSH 11 个常驻工具，MCP resources/子代理控制按配置条件注册）。
-- 大部分能力语义等价或被有意裁剪。真正值得继续集成的是：
-  **glob/grep（只读搜索，需突破任务书约束）**、**后台 jobs（job_list/output/kill）**、
-  **子代理控制面（list/interrupt/wait）**、**MCP resources 三件套（与最新 MCP 协议同步直接相关）**、
-  **会话检索（session_search/trace，可选）**。
+  chagent 当前默认加载 **33 个内置工具**（不含 gateway 注册的 `cron`；含 DSH 11 个常驻工具），
+  外加 `cron`、MCP 动态工具与 MCP resources 三件套；`reaction`/`spawn_status` 默认关闭。
+  完整清单与开关见 [工具参考](tools.zh.md)。
+- 大部分能力语义等价或被有意裁剪。已集成且默认启用：**glob/grep**、**后台 jobs**、
+  **子代理控制面（list/wait/interrupt）**、**MCP resources 三件套**、**会话检索**。
+  仍可评估：子代理消息 steer（`send_message`）、持久 PTY、结构化 patch 编辑器。
 - 明确不建议：LSP、worktree、插件市场/管理器、交互式 ask_user、run_code、workflow/ralph（workflow 专项评估见 [workflow 必要性评估](workflow-assessment.zh.md)）、
   plan-mode、`working_directory` 等与 chess 单 agent/pico 场景不匹配的能力。
 
@@ -62,27 +62,31 @@
 session-query 5 个（`session_search`/`session_trace`/`session_event_*`）、terminal 6 个
 （`terminal_open/send/read/signal/close/list`）、`create_worktree`、`propose_action`、`lsp`（只读导航四件套）。
 
-## 2. chagent 当前工具清单（24 静态 + 动态）
+## 2. chagent 当前工具清单（33 默认内置 + cron + MCP 动态）
 
-`read_file`、`write_file`、`edit_file`、`append_file`、`list_dir`、`exec`、`task_get`、`task_update`、
-`todo_write`、`skill`、`find_skills`、`install_skill`、`message`、`reaction`、`send_file`、`load_image`、
-`spawn`、`spawn_status`、`subagent`、`delegate`、`web_search`、`web_fetch`、`cron`；
-外加 `tool_search_tool_regex`/`tool_search_tool_bm25`（MCP 工具发现）与 MCP 动态
-`mcp_<server>_<tool>`。注册点：`pkg/agent/instance.go:104-177`、`agent_init.go:111-361`、
-`agent_mcp.go:174`、`gateway.go:769-774`（cron）。
+默认 33 个内置工具（不含 gateway 注册的 `cron`）：文件 `read_file`/`write_file`/`edit_file`/`append_file`/`list_dir`、
+Shell `exec`、搜索 `glob`/`grep`、后台 `job_run`/`job_list`/`job_output`/`job_kill`、
+任务 `task_get`/`task_update`/`todo_write`、目标 `create_goal`/`get_goal`/`update_goal`、
+技能 `skill`/`find_skills`/`install_skill`、会话 `session_search`/`session_trace`、
+子代理 `spawn`/`subagent`/`list_agents`/`wait_agent`/`interrupt_agent`、
+消息 `message`/`send_file`/`load_image`、Web `web_search`/`web_fetch`。
+另有 `cron`（gateway 注册）、`reaction`/`spawn_status`（默认关闭）、`delegate`（多 agent 时自动注册）、
+MCP 动态 `mcp_<server>_<tool>` 与 MCP resources 三件套。
+完整清单与开关见 [工具参考](tools.zh.md)。注册点：`pkg/agent/instance.go`、`agent_init.go`、
+`agent_mcp.go`、`gateway.go`（cron）。
 
 ## 3. 差异矩阵
 
 | 能力 | DSH | chagent | 结论 |
 |---|---|---|---|
 | 文件读/写/编辑 | read/write/edit/read_image | read_file/write_file/edit_file/append_file/load_image | ✅ 等价（命名不同）；DSH `str_replace_editor` 可选 |
-| 文件搜索 | **glob/grep（默认）** | 无（仅 `exec` 可跑 rg） | ❌ 缺口；**与任务书 §12 冲突**，需决策 |
-| Shell | bash/pwsh（一次性/持久） | exec（一次性，60s 超时） | ⚠️ 无持久 shell、无后台 job 语义 |
-| 后台 jobs | **job_list/output/kill（默认）** | 无 | ❌ 缺口；长命令/轮询输出场景有价值 |
-| 任务/待办 | todo_write + goal 工具 | task_get/task_update/todo_write | ✅ TaskState 覆盖；goal/plan 语义不迁移 |
-| 子代理 | subagent/fork + list/interrupt/send/wait | spawn/subagent/delegate | ⚠️ 缺控制面（无法列举/中断/等待子代理） |
-| 会话检索 | session-query（可选插件）：search/trace/event | 无模型工具（JSONL + `/context`） | ❌ 可选缺口；自主排障价值中 |
-| MCP | 工具 + **resources 三件套（默认）** | 仅 MCP tools | ❌ **建议优先补齐（与最新协议同步相关）** |
+| 文件搜索 | **glob/grep（默认）** | `glob`/`grep`（DSH 工具组，默认启用） | ✅ 已集成 |
+| Shell | bash/pwsh（一次性/持久） | exec（一次性 + `background=true` 会话） | ✅ 后台命令由 `job_*` 覆盖；无持久 PTY |
+| 后台 jobs | **job_list/output/kill（默认）** | `job_run`/`job_list`/`job_output`/`job_kill` | ✅ 已集成 |
+| 任务/待办 | todo_write + goal 工具 | task_get/task_update/todo_write + goal 工具 | ✅ TaskState + todo + durable goal；注意三套状态的使用边界 |
+| 子代理 | subagent/fork + list/interrupt/send/wait | spawn/subagent/delegate + list/wait/interrupt | ⚠️ 缺运行中子代理消息 steer（`send_message`） |
+| 会话检索 | session-query（可选插件）：search/trace/event | `session_search`/`session_trace` | ✅ 已集成（不含 event surface） |
+| MCP | 工具 + **resources 三件套（默认）** | MCP tools + resources 三件套（MCP 连接后注册） | ✅ 已集成 |
 | 调度 | schedule_*（默认，提醒语义） | cron（定时任务） | ✅ 等价能力；接口形态不同 |
 | 计划/目标驱动 | plan-mode / goal-round driver | TaskState + autonomy | ✅ 语义覆盖（任务书明确 chess 不需要 plan mode） |
 | 交互 | ask_user_question、present | 无（message 单向） | ❌ 不适用于 pico 异步通道 |

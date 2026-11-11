@@ -27,6 +27,10 @@
 - 省略 `enabled` = 启用；显式 `false` 关闭该组/子组。
 - 组工具遵守 agent 的 `tools` allowlist（与原有工具一致）。
 - 关闭 MCP 或未配置 server 时，`mcp_resources` 子组不会注册工具；关闭 subagent 时 `subagent_control` 不注册。
+- 兼容外部界面的扁平开关：`tools.glob`/`tools.grep`、`tools.job_*`、`tools.create_goal`/`get_goal`/`update_goal`、
+  `tools.session_search`/`session_trace`、`tools.list_agents`/`wait_agent`/`interrupt_agent`、
+  `tools.list_mcp_resources`/`list_mcp_resource_templates`/`read_mcp_resource`。加载时归一化到上表分组；
+  同一分组任一扁平开关为 `false` 即关闭该分组，标准嵌套写法仍优先。
 
 ## 2. 已迁移工具（14 个）
 
