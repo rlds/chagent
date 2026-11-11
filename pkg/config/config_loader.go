@@ -18,6 +18,8 @@ func loadConfig(data []byte) (*Config, error) {
 	if err := decodeJSONWithDiagnostics(data, cfg, "config.json"); err != nil {
 		return nil, err
 	}
+	// 兼容外部界面输出的按工具名扁平开关（tools.glob、tools.job_run 等）。
+	cfg.Tools.ApplyFlatToolAliases()
 	return cfg, nil
 }
 

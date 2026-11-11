@@ -354,7 +354,7 @@ func registerSharedTools(
 		// 为多 agent 环境注册 delegate 工具。
 		// 存在多个 agent 时自动启用。委派直接使用 SubTurn 机制
 		// （而非 SubagentManager），与 subagent 工具相互独立。
-		if len(registry.ListAgentIDs()) > 1 {
+		if len(registry.ListAgentIDs()) > 1 && cfg.Tools.IsDelegateEnabled() {
 			delegateTool := tools.NewDelegateTool()
 			delegateTool.SetSpawner(NewSubTurnSpawner(al))
 			currentAgentID := agentID

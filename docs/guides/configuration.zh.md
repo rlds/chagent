@@ -192,6 +192,12 @@ DSH 原生、但 Chagent 原先缺失的工具已用 Go 重写为独立工具组
 
 工具清单、能力与安全边界见 [DSH 工具组](../reference/dsh-tools.zh.md)；整组默认启用，可整组或按子组关闭。
 
+外部配置界面可能写出按工具名的扁平开关（`tools.glob.enabled`、`tools.job_run.enabled`、
+`tools.task_get.enabled`、`tools.skill.enabled` 等）。加载器会接受这些键并归一化到
+`tools.dsh.*` / `tools.task` / `tools.todo` / `tools.skill_load`；同一分组内任一扁平开关为
+`false` 会关闭该分组，标准嵌套写法仍优先。完整映射见
+[工具参考](../reference/tools.zh.md#扁平工具开关兼容)。
+
 
 ## 环境变量前缀（重命名后不兼容旧名称）
 
