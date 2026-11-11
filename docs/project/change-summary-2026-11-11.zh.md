@@ -2,10 +2,10 @@
 
 > 范围：默认 system prompt 的任务/记忆/角色策略、工作区任务板、工具开关兼容与工具清单核对。
 > 基线：`e4a86dd`（仓库快照 ddmcv4）
-> 当前 HEAD：`49bf30c`
 > 关键提交：
 > - `e80e0a2` feat(agent): 默认提示词增加任务、记忆与角色判定策略
 > - `49bf30c` fix(config): 兼容扁平工具开关并核对默认工具清单
+> - 后续清理提交：删除未被引用的仓库 `workspace/` 示例目录
 
 ## 1. 背景与目标
 
@@ -37,12 +37,9 @@
 
 ## 3. 工作区任务板
 
-新增模板：
-
-- `workspace/tasks/TASKS.md`：未完成任务清单与记录格式。
-- `workspace/tasks/TASK_LOG.md`：已完成/放弃任务归档。
-
-同时修改 `.gitignore`，为 `workspace/tasks/` 增加例外，使模板可入库；其他 `tasks/` 目录仍按原规则忽略。
+任务板协议由 P-21 定义：模型在任务产生时于实际工作区创建 `tasks/TASKS.md`，全部完成后归档到
+`tasks/TASK_LOG.md`，不依赖仓库内模板。`e80e0a2` 曾加入 `workspace/tasks/` 示例模板；
+后续清理确认仓库 `workspace/` 示例目录未被代码、脚本、测试或打包引用，已整体删除。
 
 ## 4. 配置与工具
 
@@ -126,6 +123,7 @@
 2. 用户原始 `config.json` 未被改写；扁平开关兼容在加载期生效。
 3. 子代理消息 steer（`send_message`）尚未实现；如需要运行中子代理追加指令，应单独立项。
 4. `task_update` / `todo_write` / goal 工具的状态边界需在后续使用中保持一致，避免三套状态互相矛盾。
+5. 仓库 `workspace/` 示例目录已删除：代码、脚本、测试、打包均未引用；任务文件由运行时按需创建。
 
 ## 8. 变更文件
 
@@ -140,9 +138,6 @@ pkg/config/config.go
 pkg/config/config_loader.go
 pkg/config/flat_tool_aliases.go
 pkg/config/flat_tool_aliases_test.go
-workspace/tasks/TASKS.md
-workspace/tasks/TASK_LOG.md
-.gitignore
 docs/architecture/taskstate-autonomy.zh.md
 docs/design/agent-workspace-context-prompts.zh.md
 docs/reference/model-facing-text.zh.md

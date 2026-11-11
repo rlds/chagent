@@ -42,9 +42,6 @@ coverage.html
 ralph/
 .ralph/
 tasks/
-# 工作区任务板模板（默认 system prompt 约定的 tasks/TASKS.md、tasks/TASK_LOG.md）
-!workspace/tasks/
-!workspace/tasks/**
 
 # Plans
 docs/plans/
