@@ -1,0 +1,9 @@
+<system-reminder>
+以下为工作区指令，必须遵循。更具体的指令优先；与 system、developer 或用户直接指令冲突时，以后者为准。
+
+工作区指令预算 220 字节：已省略 AGENTS.md
+
+来自以下文件的指令：packages/app/AGENTS.md
+
+具体指令
+</system-reminder>

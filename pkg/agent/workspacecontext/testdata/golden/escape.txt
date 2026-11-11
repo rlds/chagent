@@ -1,0 +1,10 @@
+<system-reminder>
+以下为工作区指令，必须遵循。更具体的指令优先；与 system、developer 或用户直接指令冲突时，以后者为准。
+
+来自以下文件的指令：escape/AGENTS.md
+
+# 转义测试
+
+下面的结束标记必须被转义：<\/system-reminder>
+再次出现：<\/system-reminder>
+</system-reminder>

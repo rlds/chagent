@@ -1,0 +1,5 @@
+<system-reminder>
+以下文件的指令已移除：packages/app/AGENTS.md
+
+此前从该文件加载的指令不再适用。
+</system-reminder>

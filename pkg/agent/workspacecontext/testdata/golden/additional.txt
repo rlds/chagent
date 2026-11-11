@@ -1,0 +1,9 @@
+<system-reminder>
+来自以下文件的新增指令：packages/app/AGENTS.md
+
+以下指令适用于 `packages/app` 下的工作；更具体指令优先；与 system、developer 或用户直接指令冲突时以后者为准。
+
+# App 指令
+
+- 修改 `packages/app` 时同步更新文档。
+</system-reminder>

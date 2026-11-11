@@ -1,0 +1,3 @@
+<system-reminder>
+以下完整工作区指令 baseline 会替代此前所有工作区指令 baseline。以下为工作区指令，必须遵循。更具体的指令优先；与 system、developer 或用户直接指令冲突时，以后者为准。当前没有生效的工作区指令。
+</system-reminder>

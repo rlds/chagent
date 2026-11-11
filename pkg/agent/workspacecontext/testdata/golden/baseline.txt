@@ -1,0 +1,16 @@
+<system-reminder>
+以下为工作区指令，必须遵循。更具体的指令优先；与 system、developer 或用户直接指令冲突时，以后者为准。
+
+来自以下文件的指令：AGENTS.md
+
+# 根指令
+
+- 始终使用中文回复。
+- 合并前运行 `go test ./...`。
+
+来自以下文件的指令：AGENTS.local.md
+
+# 本地覆盖
+
+- 本地运行使用临时目录。
+</system-reminder>
