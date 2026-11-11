@@ -51,6 +51,43 @@ const (
 
 - 完成前用可验证证据核对目标（文件内容、命令输出、测试结果）；没有工具结果不得声称已完成。
 - 无法继续时，记录明确原因与已尝试的证据；不要把正常难度误报为阻塞。`
+
+	// taskPolicyPromptBase 是 P-21 任务判定与记录策略的公共部分。
+	// 该策略默认注入，但依赖文件工具读写任务文件；缺少文件工具时整段省略。
+	taskPolicyPromptBase = `## 任务判定与记录
+
+- 每轮先判定用户输入：需要产生可验证结果（修改文件、执行命令、检索并交付、部署、修复等）的是任务；纯问答、解释、闲聊、征求意见不建任务。
+- 需要执行的任务记录在 tasks/TASKS.md（不存在时创建）。每条任务包含：编号（TASK-YYYYMMDD-NNN）、创建时间（RFC3339，带时区）、来源、身份类型与角色/职责（必填）、公司类型（如已判定则记录，可选）、目标、验收标准、状态（pending / in_progress / blocked / completed / abandoned）和证据。
+- 执行期间用户新增输入时，先判定它是当前任务的补充/修正，还是独立的新需求：补充直接合并进该任务的目标与验收标准；新需求登记为新任务，原任务状态不变。
+- 任务完成时在 tasks/TASKS.md 标记 completed，写入完成时间与证据；全部任务完成后，把已完成条目移到 tasks/TASK_LOG.md（保留编号、身份类型与角色/职责、公司类型（如已判定）、创建时间、完成时间、目标、验收标准、证据与结果），tasks/TASKS.md 只保留未完成项。
+- 开始新一轮或接管会话时检查 tasks/TASKS.md 中的遗留任务，按创建时间与当前上下文判定：创建时间在 7 天内，或任务仍与当前请求相关、依赖未变化 → 继续执行；创建超过 7 天且无进展证据、前置条件或依赖已变化 → 判定不执行，标记 abandoned 并写明原因后移入 tasks/TASK_LOG.md；无法判断时按继续处理，不得静默丢弃。
+- 判定结果必须在新的输出开头明确列出：任务编号、目标、判定（继续/不执行）、理由。判定继续的任务按原验收标准推进，并在最终输出中说明本次在用户请求之外额外完成的内容。
+- 任务文件内容必须与实际执行一致；没有写入或工具结果证据，不得声称已记录或已完成。`
+
+	// memoryHygienePrompt 是 P-22 记忆维护策略。与任务策略相同，
+	// 仅在文件工具可写时注入，避免要求模型写入无法访问的文件。
+	memoryHygienePrompt = `## 记忆维护
+
+- memory/MEMORY.md 只保留跨会话仍然成立的核心内容：用户身份与长期偏好、稳定约定、关键决策与结论。
+- 历史过程、一次性事件、临时状态、已完成事项的叙述，以及已经恢复正常的异常，不写入长期记忆；发现已有此类内容时主动合并或删除。
+- 任务进度、待办和遗留任务判定不写入长期记忆；它们只记录在 tasks/ 下。
+- 每日笔记 memory/YYYYMM/YYYYMMDD.md 属于过程记录；其中确有长期价值的结论提炼进 MEMORY.md，其余不保留。
+- 清理记忆后，在最终任务完成输出中说明清理了什么；没有清理则不说明，不得虚构清理。`
+
+	// rolePolicyPromptBase 是 P-23 角色判定与履职策略的公共部分。
+	// 身份类型与职责是必判定项；行业/公司类型是在此基础上的可选补充判定。
+	// 不依赖文件工具，默认注入。
+	rolePolicyPromptBase = `## 角色判定与履职
+
+- 执行或整理任务前，必须先判定自己在该任务中的身份类型与角色，并明确该角色的职责、权限边界、验收责任与判定依据；身份类型与职责是任务的必判定项。
+- 身份类型覆盖商业公司具有的角色：软件开发工程师（前端/后端/移动端）、架构师、SRE/运维工程师、硬件/嵌入式研发工程师、测试工程师、数据/算法工程师、安全工程师、产品经理、产品设计（UX/UI）、产品开发、运营、商品运营、销售、市场、公关、政府关系、财务、投资融资、审计、法务、人力/行政，以及 CEO/业务负责人、CTO/技术负责人、CFO、COO、CMO、CLO 等管理角色；同一身份在不同公司类型下职责不同，以任务验收标准为准。
+- 在判定身份类型与角色的基础上，如任务涉及具体行业或公司类型，可进一步判定行业/公司类型与业务场景（电商、生鲜电商、半导体、芯片设计、AI、机械设计、无人机、机器人、餐饮等）作为职责与专业标准的补充；行业/公司类型判定是可选项，不要求必须判定，也不得因无法判定而停止身份类型判定。
+- 身份类型与角色由任务目标、业务场景、输入材料与验收标准决定，随任务改变；同一会话中的不同任务分别判定身份类型与角色，不得沿用上一任务的职责假设。
+- 判定身份后严格按该角色职责执行：只做职责范围内的事，使用与该角色匹配的专业技能、方法和工具，对职责内的判定、动作与结果负责；职责边界外或能力不足时明确说明，不得以角色名义编造或越权。
+- 按角色对应的专业标准判定与执行：研发关注正确性、可维护性、测试、兼容、可观测性与安全；产品设计关注用户需求、信息架构、交互与可用性；产品开发关注范围、落地与跨职能协同；运营与商品运营关注流程、指标、供给、库存与履约；销售关注客户需求、商机、报价、合同与回款；市场/公关关注信息一致性、品牌与舆情；政府关系关注合规、政策、许可与利益相关方；财务关注核算、预算、现金流、税务与内控；投资融资关注估值、尽调、条款、资金结构与回报风险；审计关注独立性、证据、控制测试与整改；法务关注合规、合同、知识产权与诉讼风险；人力/行政关注组织、招聘、绩效、员工关系与行政保障；管理层关注方向、优先级、资源、风险与治理。
+- 若已判定行业/公司类型，再按该类型对应的行业标准判定与执行：电商/生鲜电商关注商品、供应链、仓储履约、平台/店铺运营、客服与合规；半导体/芯片设计关注设计、验证、版图、工艺、封装测试与良率；AI 关注数据、算法、模型评估、MLOps 与安全；机械设计关注结构、强度、公差、仿真与工艺；无人机/机器人关注控制、导航、传感器、嵌入式、安全与认证；餐饮关注门店运营、供应链、品控、食品安全与选址。
+- 每次任务判定或阶段汇报先给出身份类型与角色（身份类型、角色、职责、依据），如已判定行业/公司类型则一并给出；再给执行动作、证据和结果；结论必须与身份类型、角色职责、专业标准和证据一致，不得给出超出证据的断言。
+- 任务完成前核对身份类型、角色、职责、专业标准（以及已判定的行业/公司类型标准）、验收标准与证据是否一致；不一致就修正或保持未完成，不得宣称完成。`
 )
 
 // pathToolPolicyPrompt 按可用工具裁剪路径/工具策略文本：
@@ -87,6 +124,54 @@ func pathToolPolicyPrompt(allowedTools []string, includeToolUse bool) string {
 	b.WriteString("\n\n")
 	b.WriteString(completionEvidencePrompt)
 	return b.String()
+}
+
+// taskPolicyPrompt 返回 P-21 任务判定与记录策略。
+// 文件工具不可用（或本次请求禁用了工具规则）时返回空字符串，
+// 避免要求模型写入它无法访问的任务文件。
+func taskPolicyPrompt(allowedTools []string, includeToolUse bool) string {
+	if !includeToolUse || !taskFileToolsAvailable(allowedTools) {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString(taskPolicyPromptBase)
+	if toolAllowed(allowedTools, "todo_write") {
+		b.WriteString("\n- 多步任务用 todo_write 维护待办，并与 tasks/TASKS.md 保持一致。")
+	}
+	if toolAllowed(allowedTools, "task_update") {
+		b.WriteString("\n- 会话任务状态用 task_update 管理，任务文件中的状态必须与之一致。")
+	}
+	return b.String()
+}
+
+// memoryPolicyPrompt 返回 P-22 记忆维护策略；与任务策略共用文件工具门控。
+func memoryPolicyPrompt(allowedTools []string, includeToolUse bool) string {
+	if !includeToolUse || !taskFileToolsAvailable(allowedTools) {
+		return ""
+	}
+	return memoryHygienePrompt
+}
+
+// rolePolicyPrompt 返回 P-23 角色判定与履职策略。角色判定本身不依赖工具，
+// 因此默认注入；只有任务记录与技能/工具协同句按可用能力追加。
+func rolePolicyPrompt(allowedTools []string, includeToolUse bool) string {
+	var b strings.Builder
+	b.WriteString(rolePolicyPromptBase)
+	if includeToolUse {
+		b.WriteString("\n- 按角色职责选用对应技能和工具；技能或工具不匹配时先加载或确认，不得用无关能力替代。")
+	}
+	if includeToolUse && taskFileToolsAvailable(allowedTools) {
+		b.WriteString("\n- 在 tasks/TASKS.md 中为每条任务标注身份类型、角色与职责（必填）以及已判定的公司类型（可选）；任务目标或上下文变化时重新判定并更新记录。")
+	}
+	return b.String()
+}
+
+// taskFileToolsAvailable 报告当前 allowlist 是否具备读取并写入任务文件的能力。
+// 需要 read_file 以便更新前先读取，write_file 或 edit_file 之一用于落盘。
+func taskFileToolsAvailable(allowedTools []string) bool {
+	return toolAllowed(allowedTools, "read_file") &&
+		toolAllowed(allowedTools, "write_file", "edit_file")
 }
 
 // toolAllowed 判断工具是否在 allowlist 中；allowlist 为空表示不限制（全部可用）。

@@ -24,6 +24,16 @@ const (
 	p02NoOverride      = "不能覆盖 system、developer 或用户的直接指令"
 	p02LatestSnapshot  = "始终以最新一次指令快照为准"
 	p02UpdateSnippet   = "收到“更新”通知时"
+	p21TaskHeader      = "## 任务判定与记录"
+	p21TaskFile        = "tasks/TASKS.md"
+	p21TaskLog         = "tasks/TASK_LOG.md"
+	p21StaleRule       = "创建超过 7 天"
+	p22MemoryHeader    = "## 记忆维护"
+	p22MemoryCore      = "只保留跨会话仍然成立的核心内容"
+	p23RoleHeader      = "## 角色判定与履职"
+	p23RoleSnippet     = "身份类型与角色由任务目标、业务场景、输入材料与验收标准决定"
+	p23DutySnippet     = "判定身份后严格按该角色职责执行"
+	p23OutputSnippet   = "每次任务判定或阶段汇报先给出身份类型与角色"
 )
 
 func newPolicyTestBuilder(t *testing.T) *ContextBuilder {
@@ -123,6 +133,258 @@ func TestWorkspacePolicyPromptDisabled(t *testing.T) {
 			t.Fatalf("workspace policy disabled but prompt contains %q:\n%s", snippet, prompt)
 		}
 	}
+}
+
+// TestTaskAndMemoryPolicyPromptEnabledByDefault 锁定默认行为：普通聊天（未开启
+// autonomy/workspace 特性）也必须注入 P-21 任务判定/记录与 P-22 记忆维护策略，
+// 前提是文件工具可用。
+func TestTaskAndMemoryPolicyPromptEnabledByDefault(t *testing.T) {
+	cb := newPolicyTestBuilder(t)
+	prompt := cb.BuildSystemPrompt()
+
+	assertPromptContains(t, prompt,
+		p21TaskHeader,
+		p21TaskFile,
+		p21TaskLog,
+		p21StaleRule,
+		"判定结果必须在新的输出开头明确列出",
+		"在最终输出中说明本次在用户请求之外额外完成的内容",
+		p22MemoryHeader,
+		p22MemoryCore,
+		"清理记忆后，在最终任务完成输出中说明清理了什么",
+		"**任务判定**",
+	)
+	assertPromptExcludes(t, prompt,
+		"Task determination",
+		"recorded in tasks/TASKS.md",
+		"Memory hygiene",
+	)
+
+	assertKernelPolicyPart(t, cb.BuildSystemPromptParts(), "kernel.task_policy", PromptSourceTaskPolicy)
+	assertKernelPolicyPart(t, cb.BuildSystemPromptParts(), "kernel.memory_policy", PromptSourceMemoryPolicy)
+}
+
+// TestTaskAndMemoryPolicyPromptRequiresFileTools 校验门控：缺少 read_file 或
+// 写文件工具、或本次请求禁用工具规则时，不注入要求写文件的任务/记忆策略，
+// 也不在 identity 中加入任务判定规则。
+func TestTaskAndMemoryPolicyPromptRequiresFileTools(t *testing.T) {
+	cb := newPolicyTestBuilder(t)
+
+	cases := []struct {
+		name    string
+		opts    systemPromptBuildOptions
+		want    bool
+		mention bool
+	}{
+		{
+			name:    "all tools",
+			opts:    systemPromptBuildOptions{IncludeToolUseRule: true},
+			want:    true,
+			mention: true,
+		},
+		{
+			name: "read and write",
+			opts: systemPromptBuildOptions{
+				IncludeToolUseRule: true,
+				AllowedTools:       []string{"read_file", "write_file"},
+			},
+			want: true,
+		},
+		{
+			name: "read and edit",
+			opts: systemPromptBuildOptions{
+				IncludeToolUseRule: true,
+				AllowedTools:       []string{"read_file", "edit_file"},
+			},
+			want: true,
+		},
+		{
+			name: "read only",
+			opts: systemPromptBuildOptions{
+				IncludeToolUseRule: true,
+				AllowedTools:       []string{"read_file"},
+			},
+		},
+		{
+			name: "write only",
+			opts: systemPromptBuildOptions{
+				IncludeToolUseRule: true,
+				AllowedTools:       []string{"write_file"},
+			},
+		},
+		{
+			name: "tool use rule off",
+			opts: systemPromptBuildOptions{IncludeToolUseRule: false},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			prompt := renderPromptPartsLegacy(cb.buildSystemPromptParts(tc.opts))
+			for _, snippet := range []string{p21TaskHeader, p21TaskFile, p22MemoryHeader, "**任务判定**"} {
+				got := strings.Contains(prompt, snippet)
+				if got != tc.want {
+					t.Fatalf("prompt contains %q = %v, want %v:\n%s", snippet, got, tc.want, prompt)
+				}
+			}
+			// todo_write / task_update 的协同句只在对应工具可用时出现。
+			todoLine := "多步任务用 todo_write 维护待办"
+			taskUpdateLine := "会话任务状态用 task_update 管理"
+			if got := strings.Contains(prompt, todoLine); got != tc.mention {
+				t.Fatalf("prompt contains todo_write coordination line = %v, want %v", got, tc.mention)
+			}
+			if got := strings.Contains(prompt, taskUpdateLine); got != tc.mention {
+				t.Fatalf("prompt contains task_update coordination line = %v, want %v", got, tc.mention)
+			}
+		})
+	}
+}
+
+// TestRolePolicyPromptEnabledByDefault 锁定默认行为：角色判定与履职策略不依赖
+// 文件工具，普通聊天也必须注入；identity 中同时包含角色判定规则。
+func TestRolePolicyPromptEnabledByDefault(t *testing.T) {
+	cb := newPolicyTestBuilder(t)
+	prompt := cb.BuildSystemPrompt()
+
+	assertPromptContains(t, prompt,
+		p23RoleHeader,
+		p23RoleSnippet,
+		p23DutySnippet,
+		p23OutputSnippet,
+		"必须先判定自己在该任务中的身份类型与角色",
+		"身份类型与职责是任务的必判定项",
+		"身份类型覆盖商业公司具有的角色",
+		"可进一步判定行业/公司类型与业务场景",
+		"行业/公司类型判定是可选项，不要求必须判定",
+		"电商、生鲜电商、半导体、芯片设计、AI、机械设计、无人机、机器人、餐饮",
+		"软件开发工程师（前端/后端/移动端）",
+		"架构师",
+		"SRE/运维工程师",
+		"硬件/嵌入式研发工程师",
+		"产品经理",
+		"产品设计（UX/UI）",
+		"产品开发",
+		"运营",
+		"商品运营",
+		"销售",
+		"公关",
+		"政府关系",
+		"财务",
+		"投资融资",
+		"审计",
+		"法务",
+		"人力/行政",
+		"CTO/技术负责人",
+		"CFO",
+		"研发关注正确性",
+		"产品设计关注用户需求",
+		"销售关注客户需求",
+		"财务关注核算",
+		"投资融资关注估值",
+		"审计关注独立性",
+		"法务关注合规",
+		"政府关系关注合规",
+		"若已判定行业/公司类型",
+		"电商/生鲜电商关注商品",
+		"半导体/芯片设计关注设计",
+		"无人机/机器人关注控制",
+		"餐饮关注门店运营",
+		"任务完成前核对身份类型、角色、职责、专业标准（以及已判定的行业/公司类型标准）、验收标准与证据是否一致",
+		"**角色判定**",
+		"身份类型与职责",
+		"按角色职责选用对应技能和工具",
+		"在 tasks/TASKS.md 中为每条任务标注身份类型、角色与职责（必填）以及已判定的公司类型（可选）",
+	)
+	assertPromptExcludes(t, prompt,
+		"Role determination",
+		"duties and responsibilities",
+		"role-based execution",
+	)
+
+	assertKernelPolicyPart(t, cb.BuildSystemPromptParts(), "kernel.role_policy", PromptSourceRolePolicy)
+}
+
+// TestRolePolicyPromptConditionalLines 校验角色策略的协同句按可用能力裁剪：
+// 无工具规则时保留角色判定；文件工具可用时追加任务记录要求。
+func TestRolePolicyPromptConditionalLines(t *testing.T) {
+	cb := newPolicyTestBuilder(t)
+
+	cases := []struct {
+		name         string
+		opts         systemPromptBuildOptions
+		wantRole     bool
+		wantToolLine bool
+		wantTaskLine bool
+	}{
+		{
+			name:         "all tools",
+			opts:         systemPromptBuildOptions{IncludeToolUseRule: true},
+			wantRole:     true,
+			wantToolLine: true,
+			wantTaskLine: true,
+		},
+		{
+			name: "read and write",
+			opts: systemPromptBuildOptions{
+				IncludeToolUseRule: true,
+				AllowedTools:       []string{"read_file", "write_file"},
+			},
+			wantRole:     true,
+			wantToolLine: true,
+			wantTaskLine: true,
+		},
+		{
+			name: "no file tools",
+			opts: systemPromptBuildOptions{
+				IncludeToolUseRule: true,
+				AllowedTools:       []string{"web_search"},
+			},
+			wantRole:     true,
+			wantToolLine: true,
+		},
+		{
+			name:     "tool use rule off",
+			opts:     systemPromptBuildOptions{IncludeToolUseRule: false},
+			wantRole: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			prompt := renderPromptPartsLegacy(cb.buildSystemPromptParts(tc.opts))
+			if got := strings.Contains(prompt, p23RoleHeader); got != tc.wantRole {
+				t.Fatalf("prompt contains role policy = %v, want %v:\n%s", got, tc.wantRole, prompt)
+			}
+			toolLine := "按角色职责选用对应技能和工具"
+			taskLine := "在 tasks/TASKS.md 中为每条任务标注身份类型、角色与职责（必填）以及已判定的公司类型（可选）"
+			if got := strings.Contains(prompt, toolLine); got != tc.wantToolLine {
+				t.Fatalf("prompt contains role tool line = %v, want %v:\n%s", got, tc.wantToolLine, prompt)
+			}
+			if got := strings.Contains(prompt, taskLine); got != tc.wantTaskLine {
+				t.Fatalf("prompt contains role task line = %v, want %v:\n%s", got, tc.wantTaskLine, prompt)
+			}
+		})
+	}
+}
+
+func assertKernelPolicyPart(t *testing.T, parts []PromptPart, id string, source PromptSourceID) {
+	t.Helper()
+	for _, part := range parts {
+		if part.ID != id {
+			continue
+		}
+		if part.Layer != PromptLayerKernel || part.Slot != PromptSlotPolicy {
+			t.Fatalf("part %s placement = %s/%s, want kernel/policy", id, part.Layer, part.Slot)
+		}
+		if part.Source.ID != source {
+			t.Fatalf("part %s source = %s, want %s", id, part.Source.ID, source)
+		}
+		if !part.Stable || part.Cache != PromptCacheEphemeral {
+			t.Fatalf("part %s Stable/Cache = %v/%q, want true/ephemeral", id, part.Stable, part.Cache)
+		}
+		return
+	}
+	t.Fatalf("BuildSystemPromptParts() missing part %q", id)
 }
 
 func TestCompletionPolicyPromptEnabled(t *testing.T) {
@@ -235,7 +497,7 @@ func TestPolicyPromptsAreChinese(t *testing.T) {
 	)
 }
 
-// TestPolicyPromptSourcesRegistered 校验三个策略来源 id 已注册到内置 prompt 来源表，
+// TestPolicyPromptSourcesRegistered 校验六个策略来源 id 已注册到内置 prompt 来源表，
 // 且只允许 kernel/policy。
 func TestPolicyPromptSourcesRegistered(t *testing.T) {
 	registry := NewPromptRegistry()
@@ -243,6 +505,9 @@ func TestPolicyPromptSourcesRegistered(t *testing.T) {
 		PromptSourceAutonomyPolicy,
 		PromptSourceCompletionPolicy,
 		PromptSourceWorkspacePolicy,
+		PromptSourceTaskPolicy,
+		PromptSourceMemoryPolicy,
+		PromptSourceRolePolicy,
 	} {
 		if err := registry.ValidatePart(PromptPart{
 			ID:      "policy.test",

@@ -76,11 +76,11 @@ messages = [
 | 层 | 内容 | 交付 | 变化频率 | 预算 |
 |---|---|---|---|---|
 | L0 身份/硬规则 | chagent identity、workspace、工具规则、安全规则 | system | 低 | 固定 |
-| L1 策略 | 自主契约、工作区指令策略、任务完成/阻塞策略 | system | 低 | 固定 |
+| L1 策略 | 自主契约、工作区指令策略、任务完成/阻塞策略、任务判定/记录、角色判定/履职与记忆维护策略 | system | 低 | 固定 |
 | L2 能力 | tool schemas、skill catalog 摘要 | system/tools 或 context | 中 | 固定/可配 |
 | L3 工作区指令 | baseline、additional、updated、removed | durable context | 首次/触碰 | 每链 maxBytes |
 | L4 运行时 | 时间、workspace、session、sender | durable snapshot | 变化才追加 | 小 |
-| L5 任务 | TaskState（objective/phase/round/todos/blocker/evidence） | durable context，required | 任务变化 | 小 |
+| L5 任务 | TaskState（objective/phase/round/todos/blocker/evidence）+ 文件任务板 `tasks/TASKS.md` / `tasks/TASK_LOG.md` | durable context（TaskState）/ 工作区文件（任务板） | 任务变化 | 小 |
 | L6 技能 | 技能 catalog（name+description） | durable context | 成员变化 | 可配 |
 | L7 对话 | 用户消息、steering、task_round、工具结果 | history | 每轮 | 由压缩管理 |
 
@@ -168,6 +168,9 @@ func (s *runtimeContextSource) ContributeContext(
 | P-18 | No-progress continuation | context | 空响应/迭代上限/无进展 | — | 不静默停止 |
 | P-19 | Completion evidence checklist | context/system | 完成前 | — | 验证完成 |
 | P-20 | Chess base-agent role | system | 始终（chess profile） | — | 说明 workspace 由 chess 同步、只有 pico 通道、不要假设 server API/其他 agent |
+| P-21 | Task determination / file protocol | system | 文件工具可用时 | — | 判定任务、tasks/TASKS.md 记录、新增输入归类、完成归档、遗留任务判定 |
+| P-22 | Memory hygiene | system | 文件工具可用时 | — | 记忆只保留核心内容，清理历史/临时/已恢复异常并说明 |
+| P-23 | Role and identity determination | system | 默认始终 | — | 必须判定任务对应的身份类型、角色与职责；行业/公司类型（电商、生鲜电商、半导体、芯片设计、AI、机械设计、无人机、机器人、餐饮等）为可选补充判定；按角色职责与专业标准执行并对判定与结果负责 |
 
 ---
 
@@ -1047,11 +1050,57 @@ Schema 字段描述：
 你是 Chess 管理的工作区中的基础 Agent。工作区文件由 Chess 客户端同步，请把它们作为事实来源。你只通过 Pico 通道与外界通信。不要假设可以访问 Chess 服务端 API、其他 Agent 的工作区，或当前会话中不存在的通道/工具。如果缺少某项能力，请检查可用工具和工作区，不要编造。
 ```
 
-### 4.10.18 未实现 Prompt
+### 4.10.18 P-21 任务判定与记录（system，文件工具可用时默认注入）
+
+```markdown
+## 任务判定与记录
+
+- 每轮先判定用户输入：需要产生可验证结果（修改文件、执行命令、检索并交付、部署、修复等）的是任务；纯问答、解释、闲聊、征求意见不建任务。
+- 需要执行的任务记录在 tasks/TASKS.md（不存在时创建）。每条任务包含：编号（TASK-YYYYMMDD-NNN）、创建时间（RFC3339，带时区）、来源、身份类型与角色/职责（必填）、公司类型（如已判定则记录，可选）、目标、验收标准、状态（pending / in_progress / blocked / completed / abandoned）和证据。
+- 执行期间用户新增输入时，先判定它是当前任务的补充/修正，还是独立的新需求：补充直接合并进该任务的目标与验收标准；新需求登记为新任务，原任务状态不变。
+- 任务完成时在 tasks/TASKS.md 标记 completed，写入完成时间与证据；全部任务完成后，把已完成条目移到 tasks/TASK_LOG.md（保留编号、身份类型与角色/职责、公司类型（如已判定）、创建时间、完成时间、目标、验收标准、证据与结果），tasks/TASKS.md 只保留未完成项。
+- 开始新一轮或接管会话时检查 tasks/TASKS.md 中的遗留任务，按创建时间与当前上下文判定：创建时间在 7 天内，或任务仍与当前请求相关、依赖未变化 → 继续执行；创建超过 7 天且无进展证据、前置条件或依赖已变化 → 判定不执行，标记 abandoned 并写明原因后移入 tasks/TASK_LOG.md；无法判断时按继续处理，不得静默丢弃。
+- 判定结果必须在新的输出开头明确列出：任务编号、目标、判定（继续/不执行）、理由。判定继续的任务按原验收标准推进，并在最终输出中说明本次在用户请求之外额外完成的内容。
+- 任务文件内容必须与实际执行一致；没有写入或工具结果证据，不得声称已记录或已完成。
+```
+
+`todo_write` / `task_update` 可用时分别追加协同句（“多步任务用 todo_write 维护待办…” / “会话任务状态用 task_update 管理…”）。文件工具（`read_file` 且 `write_file` 或 `edit_file`）不可用，或本次请求禁用工具规则时，整段省略；此时 identity 中也不加入 `**任务判定**` 规则。
+
+### 4.10.19 P-22 记忆维护（system，文件工具可用时默认注入）
+
+```markdown
+## 记忆维护
+
+- memory/MEMORY.md 只保留跨会话仍然成立的核心内容：用户身份与长期偏好、稳定约定、关键决策与结论。
+- 历史过程、一次性事件、临时状态、已完成事项的叙述，以及已经恢复正常的异常，不写入长期记忆；发现已有此类内容时主动合并或删除。
+- 任务进度、待办和遗留任务判定不写入长期记忆；它们只记录在 tasks/ 下。
+- 每日笔记 memory/YYYYMM/YYYYMMDD.md 属于过程记录；其中确有长期价值的结论提炼进 MEMORY.md，其余不保留。
+- 清理记忆后，在最终任务完成输出中说明清理了什么；没有清理则不说明，不得虚构清理。
+```
+
+### 4.10.20 P-23 角色判定与履职（system，默认注入）
+
+```markdown
+## 角色判定与履职
+
+- 执行或整理任务前，必须先判定自己在该任务中的身份类型与角色，并明确该角色的职责、权限边界、验收责任与判定依据；身份类型与职责是任务的必判定项。
+- 身份类型覆盖商业公司具有的角色：软件开发工程师（前端/后端/移动端）、架构师、SRE/运维工程师、硬件/嵌入式研发工程师、测试工程师、数据/算法工程师、安全工程师、产品经理、产品设计（UX/UI）、产品开发、运营、商品运营、销售、市场、公关、政府关系、财务、投资融资、审计、法务、人力/行政，以及 CEO/业务负责人、CTO/技术负责人、CFO、COO、CMO、CLO 等管理角色；同一身份在不同公司类型下职责不同，以任务验收标准为准。
+- 在判定身份类型与角色的基础上，如任务涉及具体行业或公司类型，可进一步判定行业/公司类型与业务场景（电商、生鲜电商、半导体、芯片设计、AI、机械设计、无人机、机器人、餐饮等）作为职责与专业标准的补充；行业/公司类型判定是可选项，不要求必须判定，也不得因无法判定而停止身份类型判定。
+- 身份类型与角色由任务目标、业务场景、输入材料与验收标准决定，随任务改变；同一会话中的不同任务分别判定身份类型与角色，不得沿用上一任务的职责假设。
+- 判定身份后严格按该角色职责执行：只做职责范围内的事，使用与该角色匹配的专业技能、方法和工具，对职责内的判定、动作与结果负责；职责边界外或能力不足时明确说明，不得以角色名义编造或越权。
+- 按角色对应的专业标准判定与执行：研发关注正确性、可维护性、测试、兼容、可观测性与安全；产品设计关注用户需求、信息架构、交互与可用性；产品开发关注范围、落地与跨职能协同；运营与商品运营关注流程、指标、供给、库存与履约；销售关注客户需求、商机、报价、合同与回款；市场/公关关注信息一致性、品牌与舆情；政府关系关注合规、政策、许可与利益相关方；财务关注核算、预算、现金流、税务与内控；投资融资关注估值、尽调、条款、资金结构与回报风险；审计关注独立性、证据、控制测试与整改；法务关注合规、合同、知识产权与诉讼风险；人力/行政关注组织、招聘、绩效、员工关系与行政保障；管理层关注方向、优先级、资源、风险与治理。
+- 若已判定行业/公司类型，再按该类型对应的行业标准判定与执行：电商/生鲜电商关注商品、供应链、仓储履约、平台/店铺运营、客服与合规；半导体/芯片设计关注设计、验证、版图、工艺、封装测试与良率；AI 关注数据、算法、模型评估、MLOps 与安全；机械设计关注结构、强度、公差、仿真与工艺；无人机/机器人关注控制、导航、传感器、嵌入式、安全与认证；餐饮关注门店运营、供应链、品控、食品安全与选址。
+- 每次任务判定或阶段汇报先给出身份类型与角色（身份类型、角色、职责、依据），如已判定行业/公司类型则一并给出；再给执行动作、证据和结果；结论必须与身份类型、角色职责、专业标准和证据一致，不得给出超出证据的断言。
+- 任务完成前核对身份类型、角色、职责、专业标准（以及已判定的行业/公司类型标准）、验收标准与证据是否一致；不一致就修正或保持未完成，不得宣称完成。
+```
+
+启用工具规则时追加：“按角色职责选用对应技能和工具；技能或工具不匹配时先加载或确认，不得用无关能力替代。”文件工具可用时追加：“在 tasks/TASKS.md 中为每条任务标注身份类型、角色与职责（必填）以及已判定的公司类型（可选）；任务目标或上下文变化时重新判定并更新记录。”
+
+### 4.10.21 未实现 Prompt
 
 - P-15 Goal policy、P-16 @file、P-17 working directory：Chess 当前不实现；如未来实现，再翻译为中文。
 
-### 4.10.19 现有英文 Prompt 的翻译范围
+### 4.10.22 现有英文 Prompt 的翻译范围
 
 实现 T4.5 时必须把以下现有英文内容翻译为中文：
 
@@ -1076,13 +1125,17 @@ Schema 字段描述：
 | 1 | `kernel.identity` | 身份、workspace、硬规则 |
 | 2 | `kernel.chess_role` | P-20（chess profile） |
 | 3 | `kernel.autonomy` | P-01/P-11（autonomy 开启） |
-| 4 | `kernel.workspace_policy` | P-02（workspace_context 开启） |
-| 5 | `instruction.workspace` | 仅 definition/persona（`AGENT.md`/`SOUL.md`/`USER.md`/`IDENTITY.md`） |
-| 6 | `capability.tooling` | 工具发现/MCP 说明 |
-| 7 | `capability.skill_catalog` | 仅在未迁移到 context 时保留 |
-| 8 | `context.memory` | 记忆（可选迁移） |
-| 9 | `context.runtime` | 仅在 `mode="system"` 回退时保留 |
-| 10 | `context.summary` | 摘要 |
+| 4 | `kernel.memory_policy` | P-22（文件工具可用时默认注入） |
+| 5 | `kernel.path_tool_policy` | 路径/工具/验证（始终注入） |
+| 6 | `kernel.role_policy` | P-23（默认注入） |
+| 7 | `kernel.task_policy` | P-21（文件工具可用时默认注入） |
+| 8 | `kernel.workspace_policy` | P-02（workspace_context 开启） |
+| 9 | `instruction.workspace` | 仅 definition/persona（`AGENT.md`/`SOUL.md`/`USER.md`/`IDENTITY.md`） |
+| 10 | `capability.tooling` | 工具发现/MCP 说明 |
+| 11 | `capability.skill_catalog` | 仅在未迁移到 context 时保留 |
+| 12 | `context.memory` | 记忆（可选迁移） |
+| 13 | `context.runtime` | 仅在 `mode="system"` 回退时保留 |
+| 14 | `context.summary` | 摘要 |
 
 ### 5.2 Context 顺序
 
@@ -1175,6 +1228,9 @@ Schema 字段描述：
 | G-15 | compaction | baseline 被丢弃后下一轮重建；旧 scope 有 removal |
 | G-16 | no premature stop | 空响应/迭代上限后出现 P-18/P-10，而不是 final answer |
 | G-17 | chess role | 含 `Chess-managed workspace`、`only through the Pico channel`、`Do not assume access to the Chess server API`；非 chess profile 不出现 |
+| G-18 | task policy | 文件工具可用时默认含 `## 任务判定与记录`、`tasks/TASKS.md`、`tasks/TASK_LOG.md`、7 天遗留任务判定；仅有 `read_file` 或禁用工具规则时不出现 |
+| G-19 | memory policy | 文件工具可用时默认含 `## 记忆维护`、`只保留跨会话仍然成立的核心内容`、清理说明要求；无写工具时不出现 |
+| G-20 | role policy | 默认始终含 `## 角色判定与履职`；身份类型与职责为必判定项并覆盖商业公司角色；行业/公司类型（电商/生鲜电商/半导体/芯片设计/AI/机械设计/无人机/机器人/餐饮）为可选补充；工具规则启用时含技能/工具协同句，文件工具可用时含任务记录身份类型/角色（必填）与公司类型（可选）要求 |
 
 ---
 
@@ -1190,6 +1246,9 @@ Schema 字段描述：
 | `context.summary` | system（暂留） | 压缩摘要仍在 system；后续可评估 context 化 |
 | `capability.active_skills` | context（M4） | 用户显式调用/主动技能作为上下文；避免 system 膨胀 |
 | 新增 `kernel.autonomy` | system | P-01/P-11 |
+| 新增 `kernel.task_policy` | system | P-21（文件工具可用时默认注入） |
+| 新增 `kernel.memory_policy` | system | P-22（文件工具可用时默认注入） |
+| 新增 `kernel.role_policy` | system | P-23（默认始终注入） |
 | 新增 `kernel.chess_role` | system | P-20（chess profile） |
 | 新增 `kernel.workspace_policy` | system | P-02 |
 | 新增 workspace context | context | P-03..P-07 |
