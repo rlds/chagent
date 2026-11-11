@@ -182,7 +182,7 @@ scripts/check-model-visible-chinese.py pkg/agent # 仅剩内部元数据候选�
 | 记忆策略 | 新增 `kernel.memory_policy`（P-22）：`memory/MEMORY.md` 只保留跨会话核心内容；清理历史/一次性/临时/已恢复异常；清理结果在最终输出说明 |
 | identity | 文件工具可用时新增强调：`**任务判定**`；`**记忆**` 扩写为核心内容与清理要求 |
 | 门控 | 两条策略在 `read_file` 且 `write_file`/`edit_file` 可用时默认注入；`todo_write`/`task_update` 可用时追加协同句；工具规则禁用或缺少文件工具时整段省略 |
-| 工作区模板 | 新增 `workspace/tasks/TASKS.md`、`workspace/tasks/TASK_LOG.md` |
+| 任务文件 | 任务板由运行时按需创建，不依赖仓库模板 |
 | 测试 | 新增 `TestTaskAndMemoryPolicyPromptEnabledByDefault`、`TestTaskAndMemoryPolicyPromptRequiresFileTools`；i18n 断言补入两个中文标题；`pkg/agent` 全绿 |
 
 ## 11. 角色判定与履职策略（2026-11-11，按用户要求）
@@ -195,5 +195,5 @@ scripts/check-model-visible-chinese.py pkg/agent # 仅剩内部元数据候选�
 | identity | 新增 `**角色判定**` 硬规则（默认始终注入：必须判定身份类型与职责，行业/公司类型为可选补充） |
 | 任务策略 | `tasks/TASKS.md` 每条任务增加“身份类型与角色/职责（必填）”“公司类型（如已判定，可选）”字段；角色变化时重新判定并更新 |
 | 门控 | 角色策略默认始终注入；工具规则启用时追加技能/工具协同句；文件工具可用时追加任务记录要求 |
-| 工作区模板 | `workspace/tasks/TASKS.md` 格式增加“身份类型与职责（必填）”“公司类型（如已判定，可选）”；`TASK_LOG.md` 归档字段同步 |
+| 任务文件 | 任务记录字段由 P-21/P-23 定义，运行时创建 `tasks/TASKS.md` 与 `tasks/TASK_LOG.md`；不依赖仓库模板 |
 | 测试 | 新增 `TestRolePolicyPromptEnabledByDefault`、`TestRolePolicyPromptConditionalLines`；i18n 断言补入 `## 角色判定与履职`；`pkg/agent` 全绿 |
