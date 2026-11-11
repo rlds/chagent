@@ -1,4 +1,4 @@
-.PHONY: all build build-all run install uninstall uninstall-all clean test test-lean vet fmt lint lint-docs fix deps update-deps check help
+.PHONY: all build build-all run install uninstall uninstall-all clean test test-lean integration-test vet fmt lint lint-docs fix deps update-deps check help
 
 # ---------------------------------------------------------------------------
 # Chagent (chess base agent) Makefile
@@ -158,6 +158,10 @@ test:
 ## test-lean: Build + run the agent-scoped test packages only
 test-lean:
 	@./scripts/lean-test.sh
+
+## integration-test: Run Docker-based integration suites
+integration-test:
+	@./scripts/run-integration-tests.sh
 
 ## vet: Run go vet over the repository
 vet:
