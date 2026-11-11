@@ -37,6 +37,8 @@
 | 上下文摘要说明 | ✅ 中文 | `pkg/agent/context.go:213` |
 | 运行时事实（snapshot 模式） | ✅ 中文 | `pkg/agent/runtime_context.go:19-45`（当前时间/平台/工作区/会话/发送者，中文标签） |
 | 策略 Prompt P-01 / P-02 / P-11 | ✅ 中文 | `pkg/agent/prompt_policy.go:12-30` |
+| 策略 Prompt P-21 / P-22（任务判定/记录、记忆维护） | ✅ 中文 | `pkg/agent/prompt_policy.go`（`taskPolicyPrompt` / `memoryPolicyPrompt`），文件工具可用时默认注入 |
+| 策略 Prompt P-23（角色判定与履职） | ✅ 中文 | `pkg/agent/prompt_policy.go`（`rolePolicyPrompt`），默认始终注入 |
 | 工具发现 / MCP / agent 发现 contributor | ✅ 中文 | `pkg/agent/prompt_contributors.go:100` 起（MCP 中文文案；测试 `TestModelVisibleContributorPromptsAreChinese` 锁定） |
 | turn profile 规则（**始终使用工具**…） | ✅ 中文 | `pkg/agent/turn_profile_policy.go:71` |
 | 技能目录（system 回退模式） | ✅ 中文 | `pkg/agent/context.go:339` 段 + `skill_catalog_context.go:261`（技能是可复用的…） |
@@ -169,3 +171,29 @@ scripts/check-model-visible-chinese.py pkg/agent # 仅剩内部元数据候选�
 | 技能 | catalog usage hint、system 技能 intro、激活技能指令改为精确条件与禁止推断 |
 | 其他 | loop-guard、context-pressure、interrupt、task_round、summary prefix、agent 默认回复、agent discovery、legacy summary 提示统一去软化词、改精确陈述 |
 | 测试 | 相关断言与 workspacecontext golden 同步更新；`pkg/agent`/`workspacecontext`/`pkg/config` 全绿 |
+
+## 10. 任务与记忆策略（2026-11-11，按用户要求）
+
+要求：默认 system prompt 增加“会话内容是否是需要执行的任务”的判定；需要执行的任务记录到专门文件；执行期间新增用户输入区分“原任务补充”与“新需求任务”；全部任务完成后标记完成并移入任务日志；遗留未完成任务按创建时间判定是否继续执行，并在输出中明确任务与判定；记忆只保留核心内容，清理历史堆积、临时状态与已恢复的异常，并在最终输出说明清理。
+
+| 区域 | 修改 |
+|---|---|
+| 任务策略 | 新增 `kernel.task_policy`（P-21）：任务判定、`tasks/TASKS.md` 记录格式、新增输入归类、完成标记与 `tasks/TASK_LOG.md` 归档、7 天遗留任务判定与输出要求 |
+| 记忆策略 | 新增 `kernel.memory_policy`（P-22）：`memory/MEMORY.md` 只保留跨会话核心内容；清理历史/一次性/临时/已恢复异常；清理结果在最终输出说明 |
+| identity | 文件工具可用时新增强调：`**任务判定**`；`**记忆**` 扩写为核心内容与清理要求 |
+| 门控 | 两条策略在 `read_file` 且 `write_file`/`edit_file` 可用时默认注入；`todo_write`/`task_update` 可用时追加协同句；工具规则禁用或缺少文件工具时整段省略 |
+| 工作区模板 | 新增 `workspace/tasks/TASKS.md`、`workspace/tasks/TASK_LOG.md` |
+| 测试 | 新增 `TestTaskAndMemoryPolicyPromptEnabledByDefault`、`TestTaskAndMemoryPolicyPromptRequiresFileTools`；i18n 断言补入两个中文标题；`pkg/agent` 全绿 |
+
+## 11. 角色判定与履职策略（2026-11-11，按用户要求）
+
+要求：增加自我身份和角色判定；执行与整理任务期间判定自身角色和正在履行的身份；判定后严格遵守该身份/角色的职责要求，充分使用对应角色的正确技能准确判定并执行；角色随任务改变，需严谨按角色职责给出负责的准确判定、执行与结果。身份类型与职责为必判定项；行业/公司类型（电商、生鲜电商、半导体、芯片设计、AI、机械设计、无人机、机器人、餐饮等）为可选补充判定。
+
+| 区域 | 修改 |
+|---|---|
+| 角色策略 | 新增 `kernel.role_policy`（P-23）：执行/整理任务前必须判定身份类型、角色与职责；身份类型覆盖软件开发（前端/后端/移动端）、架构、SRE/运维、硬件/嵌入式、测试、数据/算法、安全、产品经理、产品设计（UX/UI）、产品开发、运营、商品运营、销售、市场、公关、政府关系、财务、投资融资、审计、法务、人力/行政及 CEO/CTO/CFO/COO/CMO/CLO 等管理角色；在身份类型基础上可按需判定行业/公司类型（可选，不要求必须判定）；角色随任务改变；按角色职责与专业标准（已判定行业时叠加行业标准）选用技能和工具；任务判定或阶段汇报先给身份类型与角色再给动作/证据/结果；完成前核对一致性 |
+| identity | 新增 `**角色判定**` 硬规则（默认始终注入：必须判定身份类型与职责，行业/公司类型为可选补充） |
+| 任务策略 | `tasks/TASKS.md` 每条任务增加“身份类型与角色/职责（必填）”“公司类型（如已判定，可选）”字段；角色变化时重新判定并更新 |
+| 门控 | 角色策略默认始终注入；工具规则启用时追加技能/工具协同句；文件工具可用时追加任务记录要求 |
+| 工作区模板 | `workspace/tasks/TASKS.md` 格式增加“身份类型与职责（必填）”“公司类型（如已判定，可选）”；`TASK_LOG.md` 归档字段同步 |
+| 测试 | 新增 `TestRolePolicyPromptEnabledByDefault`、`TestRolePolicyPromptConditionalLines`；i18n 断言补入 `## 角色判定与履职`；`pkg/agent` 全绿 |

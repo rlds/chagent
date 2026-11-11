@@ -195,9 +195,10 @@ func (cb *ContextBuilder) promptRegistryOrDefault() *PromptRegistry {
 	return cb.promptRegistry
 }
 
-func (cb *ContextBuilder) getIdentity(includeToolUseRule bool) string {
+func (cb *ContextBuilder) getIdentity(includeToolUseRule bool, allowedTools []string) string {
 	workspacePath, _ := filepath.Abs(filepath.Join(cb.workspace))
 	version := config.FormatVersion()
+	fileToolsAvailable := includeToolUseRule && taskFileToolsAvailable(allowedTools)
 	rules := []string{}
 	if includeToolUseRule {
 		rules = append(rules, toolUseSystemPromptRule())
@@ -205,18 +206,29 @@ func (cb *ContextBuilder) getIdentity(includeToolUseRule bool) string {
 	rules = append(
 		rules,
 		"**精确执行** - 绝对准确地理解用户意图与约束，严格按用户提交的任务与验收条件完成；不得擅自扩大或缩减任务范围。",
+	)
+	rules = append(rules, "**角色判定** - 执行或整理任务前必须判定任务对应的身份类型与职责（技术研发、产品设计与开发、运营、商品运营、销售、市场公关、政府关系、财务、投资融资、审计、法务、人力、管理层等）；行业/公司类型（电商、生鲜电商、半导体、芯片设计、AI、机械设计、无人机、机器人、餐饮等）是在此基础上的可选补充判定，不要求必须判定；角色随任务改变，严格按当前角色职责与专业标准执行并对判定与结果负责。")
+	if fileToolsAvailable {
+		rules = append(rules, "**任务判定** - 先判定用户输入是任务还是问答；需要执行的任务记录到 tasks/TASKS.md，完成一项就更新一项。")
+	}
+	rules = append(
+		rules,
 		"**上下文摘要** - 摘要为近似内容，不保证完整或最新；用户明确指令优先。",
 		"**语言与表达** - 思考与回复使用精确、精简的中文；只描述与任务直接相关的进度、结果、证据与必要说明；禁止语气词、形容词、寒暄、emoji 及与任务无关的表达。",
 	)
 	if includeToolUseRule {
-		rules = append(rules, "**记忆** - 把值得记住的用户事实保存到工作区的 memory/MEMORY.md。")
+		memoryRule := "**记忆** - 把值得记住的用户事实保存到工作区的 memory/MEMORY.md。"
+		if fileToolsAvailable {
+			memoryRule = "**记忆** - 只把跨会话仍然成立的核心内容保存到 memory/MEMORY.md；历史过程、临时状态与已恢复的异常不写入，已有堆积按记忆维护策略清理。"
+		}
+		rules = append(rules, memoryRule)
 	}
 	for i, rule := range rules {
 		rules[i] = fmt.Sprintf("%d. %s", i+1, rule)
 	}
 
 	return fmt.Sprintf(
-		`# chagent 🦞 (%s)
+		`# chagent(%s)
 
 你是 chagent，一个严格按用户意图完成任务的执行型 AI Agent。
 
@@ -293,7 +305,7 @@ func (cb *ContextBuilder) buildSystemPromptParts(opts systemPromptBuildOptions) 
 		Slot:    PromptSlotIdentity,
 		Source:  PromptSource{ID: PromptSourceKernel, Name: "identity"},
 		Title:   "chagent identity",
-		Content: cb.getIdentity(opts.IncludeToolUseRule),
+		Content: cb.getIdentity(opts.IncludeToolUseRule, opts.AllowedTools),
 		Stable:  true,
 		Cache:   PromptCacheEphemeral,
 	})
@@ -310,6 +322,47 @@ func (cb *ContextBuilder) buildSystemPromptParts(opts systemPromptBuildOptions) 
 		Stable:  true,
 		Cache:   PromptCacheEphemeral,
 	})
+
+	// 角色判定与履职（P-23）：默认注入，不依赖文件工具；
+	// 任务记录与技能/工具协同句按可用能力追加。
+	add(PromptPart{
+		ID:      "kernel.role_policy",
+		Layer:   PromptLayerKernel,
+		Slot:    PromptSlotPolicy,
+		Source:  PromptSource{ID: PromptSourceRolePolicy, Name: string(PromptSourceRolePolicy)},
+		Title:   "role policy",
+		Content: rolePolicyPrompt(opts.AllowedTools, opts.IncludeToolUseRule),
+		Stable:  true,
+		Cache:   PromptCacheEphemeral,
+	})
+
+	// 任务判定/记录（P-21）与记忆维护（P-22）：默认行为契约。
+	// 依赖文件工具读写 tasks/TASKS.md、tasks/TASK_LOG.md 与 memory/MEMORY.md；
+	// 缺少文件工具或禁用工具规则时自动省略，避免要求模型写入无法访问的文件。
+	if content := taskPolicyPrompt(opts.AllowedTools, opts.IncludeToolUseRule); content != "" {
+		add(PromptPart{
+			ID:      "kernel.task_policy",
+			Layer:   PromptLayerKernel,
+			Slot:    PromptSlotPolicy,
+			Source:  PromptSource{ID: PromptSourceTaskPolicy, Name: string(PromptSourceTaskPolicy)},
+			Title:   "task policy",
+			Content: content,
+			Stable:  true,
+			Cache:   PromptCacheEphemeral,
+		})
+	}
+	if content := memoryPolicyPrompt(opts.AllowedTools, opts.IncludeToolUseRule); content != "" {
+		add(PromptPart{
+			ID:      "kernel.memory_policy",
+			Layer:   PromptLayerKernel,
+			Slot:    PromptSlotPolicy,
+			Source:  PromptSource{ID: PromptSourceMemoryPolicy, Name: string(PromptSourceMemoryPolicy)},
+			Title:   "memory policy",
+			Content: content,
+			Stable:  true,
+			Cache:   PromptCacheEphemeral,
+		})
+	}
 
 	// 策略片段（DSH P-01/P-02/P-11）。它们按特性开关启用，
 	// 关闭时不贡献任何内容——保持默认聊天 prompt 稳定。

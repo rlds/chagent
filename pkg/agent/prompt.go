@@ -52,6 +52,9 @@ const (
 	PromptSourceKernel           PromptSourceID = "runtime.kernel"
 	PromptSourceAutonomyPolicy   PromptSourceID = "kernel.autonomy_policy"
 	PromptSourcePathToolPolicy   PromptSourceID = "kernel.path_tool_policy"
+	PromptSourceTaskPolicy       PromptSourceID = "kernel.task_policy"
+	PromptSourceMemoryPolicy     PromptSourceID = "kernel.memory_policy"
+	PromptSourceRolePolicy       PromptSourceID = "kernel.role_policy"
 	PromptSourceWorkspacePolicy  PromptSourceID = "kernel.workspace_policy"
 	PromptSourceCompletionPolicy PromptSourceID = "kernel.completion_policy"
 	PromptSourceHierarchy        PromptSourceID = "runtime.hierarchy"
@@ -208,6 +211,27 @@ func builtinPromptSources() []PromptSourceDescriptor {
 			ID:              PromptSourcePathToolPolicy,
 			Owner:           "agent",
 			Description:     "Path, tool-use and verification policy (DSH-derived), always emitted",
+			Allowed:         []PromptPlacement{{Layer: PromptLayerKernel, Slot: PromptSlotPolicy}},
+			StableByDefault: true,
+		},
+		{
+			ID:              PromptSourceTaskPolicy,
+			Owner:           "agent",
+			Description:     "Task determination, task file protocol and stale task handling (P-21), emitted when file tools are available",
+			Allowed:         []PromptPlacement{{Layer: PromptLayerKernel, Slot: PromptSlotPolicy}},
+			StableByDefault: true,
+		},
+		{
+			ID:              PromptSourceMemoryPolicy,
+			Owner:           "agent",
+			Description:     "Memory hygiene policy (P-22), emitted when file tools are available",
+			Allowed:         []PromptPlacement{{Layer: PromptLayerKernel, Slot: PromptSlotPolicy}},
+			StableByDefault: true,
+		},
+		{
+			ID:              PromptSourceRolePolicy,
+			Owner:           "agent",
+			Description:     "Role and identity determination policy (P-23), emitted by default",
 			Allowed:         []PromptPlacement{{Layer: PromptLayerKernel, Slot: PromptSlotPolicy}},
 			StableByDefault: true,
 		},
