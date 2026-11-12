@@ -2,7 +2,7 @@
 
 > 核对日期：2026-11-02。
 > DSH：`/Users/wudaorui/code/deepseek-harness`（`master @ 22ddee3792`，v0.2.1-rc.3，只读）。
-> chagent：`/Users/wudaorui/code/chagent`（`ddmcv4 @ 5da70e0b` + 未提交修复工作树）。
+> chagent：`/Users/wudaorui/code/chagent`（`v2 @ 5da70e0b` + 未提交修复工作树）。
 > 方法：源码静态枚举（DSH `defineTool(`/`ctx.tools.register` 全量扫描 + bundle 依赖矩阵；chagent
 > `instance.go`/`agent_init.go`/`agent_mcp.go` 注册点）+ 任务书约束核对。
 > 证据：`build/functest-20261030/analysis/dsh-parity/`（`evidence-dsh-inventory.txt`、

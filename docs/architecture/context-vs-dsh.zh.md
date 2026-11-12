@@ -2,7 +2,7 @@
 
 > 核对日期：2026-11-02。
 > DSH：`/Users/wudaorui/code/deepseek-harness`，`master @ 22ddee37`（只读）。
-> chagent：`/Users/wudaorui/code/chagent`，`ddmcv4 @ 5da70e0b` + 修复工作树（D1/D4/D5/P0 等 53 个未提交文件）。
+> chagent：`/Users/wudaorui/code/chagent`，`v2 @ 5da70e0b` + 修复工作树（D1/D4/D5/P0 等 53 个未提交文件）。
 > 方法：只读源码 + 既有测试/真实场景产物（task-6、task-15），本轮未跑真实模型；行号证据见
 > `build/functest-20261030/analysis/context-parity/`。
 >

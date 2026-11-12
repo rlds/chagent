@@ -1,6 +1,6 @@
 # 仍存在的问题 / 可接受残留（Open Issues & Accepted Residue）
 
-> 快照：2026-11-02（残余问题修复轮后）。HEAD `ddmcv4` + 待提交修复。
+> 快照：2026-11-02（残余问题修复轮后）。HEAD `v2` + 待提交修复。
 > 口径：`OPEN-*` 为仍需跟进/决策的缺口；`ACCEPT-*` 为已知但不计划处理的历史/设计残留。
 > 索引与状态口径见 [问题库 README](README.md)；已修复项见 [fixed.zh.md](fixed.zh.md)。
 

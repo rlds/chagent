@@ -2,7 +2,7 @@
 
 > 状态：已执行 + **已修复并复测**（真实模型 + 真实 gateway + pico WebSocket）
 > 日期：2026-10-30（初测 15:38–17:30；修复与复测 17:31–18:20）
-> 被测基线：`HEAD 5da70e0b`（分支 `ddmcv4`，提交信息 `1`，2026-10-30 15:09:39 +0800）
+> 被测基线：`HEAD 5da70e0b`（分支 `v2`，提交信息 `1`，2026-10-30 15:09:39 +0800）
 > 环境：macOS darwin/arm64，`go version go1.27.3`，`go.mod` go 指令 `1.27.3`，vendor 构建
 > 依据：
 > - 任务书：`docs/design/agent-workspace-context-task-book.zh.md`（v0.2，§0 执行契约、§11 测试验证矩阵）

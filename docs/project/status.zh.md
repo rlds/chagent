@@ -1,14 +1,14 @@
 # Chagent Chess 基础 Agent · 项目状态
 
 > 快照日期：**2026-11-02**（Asia/Shanghai，残余问题修复轮后）。
-> 口径：分支 `ddmcv4`；项目已重命名为 **Chagent**，本轮重命名提交 `de3e4437`，随后提交中文模型文本/构建启动脚本/移除旧名兼容。
+> 口径：分支 `v2`；项目已重命名为 **Chagent**，本轮重命名提交 `de3e4437`，随后提交中文模型文本/构建启动脚本/移除旧名兼容。
 > 相关：[项目介绍](introduction.zh.md) · [问题库](../issues/README.md) · [覆盖率报告](../reference/coverage.zh.md) · [完整测试报告](../design/agent-functional-test-report.zh.md)
 
 ## 1. 代码与工作树状态
 
 | 项 | 值 |
 |---|---|
-| 分支 / 最新代码提交 | `ddmcv4` / `db13b1e1`（Chagent + rlds module + 中文注释/文档/CLI/技能）；module 重命名提交 `85ec8da4` |
+| 分支 / 最新代码提交 | `v2` / `db13b1e1`（Chagent + rlds module + 中文注释/文档/CLI/技能）；module 重命名提交 `85ec8da4` |
 | 本轮提交 | P0/P1/P2 修复、E2E/配置/上下文脚本、项目文档与问题库、MCP 2026-06-30 原生、DSH 工具组 14 工具、残余缺陷修复、覆盖率/竞态/MCP 生命周期修复、**项目重命名 chagent**、中文模型文本、构建/启动脚本（详见 `git log`） |
 | 工具链 | 本机 `go1.27.3 darwin/arm64`；`go.mod` 指令 `1.27.3`；vendor 模式（本地 go-sdk fork `third_party/mcp-go-sdk`） |
 | 包规模 | `go list ./pkg/...` = 45 个包（含 `pkg/tools/dsh/*`） |
@@ -94,6 +94,6 @@
 
 1. **OPEN-17**：如 chess 出现长驻交互终端需求，单独立项迁移 terminal；MCP `resources/list_changed` 在引入资源缓存时再接线。
 2. **执行面覆盖率**：若验收要求 `pipeline_execute.go` 也 ≥90%，另立执行面夹具（当前 73.3%）。
-3. **发布**：按 `ddmcv4` 分支打 tag 前跑一次 `final-gate` + compat；`build/` 产物不入制品。
+3. **发布**：按 `v2` 分支打 tag 前跑一次 `final-gate` + compat；`build/` 产物不入制品。
 4. **安全**：`build/functest-20261030/live/workspace/config.json` 已脱敏；后续产物分享前继续遵守脱敏要求。
 5. **外部对接迁移**：按 [重命名记录](rename-to-chagent.zh.md) 将二进制/环境变量/home/pid 全部切换到 chagent；本项目不保留旧名兼容。

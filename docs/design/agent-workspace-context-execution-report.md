@@ -2,7 +2,7 @@
 
 > 状态：执行中  
 > 开始时间：2026-10-28 17:00（Asia/Shanghai）  
-> 分支：`ddmcv4`  
+> 分支：`v2`  
 > 任务书：[agent-workspace-context-task-book.zh.md](agent-workspace-context-task-book.zh.md)  
 > 目标：由 Agent 团队连续执行到任务书全部验收项与测试矩阵通过。
 
