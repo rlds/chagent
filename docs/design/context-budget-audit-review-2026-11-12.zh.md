@@ -86,6 +86,30 @@
 9. band digest 单调（只升不降），或每会话提醒上限。
 10. 修正配置文档默认值；补充 `省略`/`0`/显式值语义与校验告警。
 
+## 4. 默认模型上下文设置
+
+### 已确认数据
+
+- `deepseek-v4.1-flash`：model-relay 调用记录 **#7371** 成功处理
+  `prompt_tokens=235406`、`max_tokens=32768`，说明真实窗口至少能容纳
+  `235406 + 32768 = 268174`；按 DeepSeek 当前上下文能力登记窗口 **1048576**。
+- `glm-5.3`：运行态 `/context` 记录
+  `total_tokens=524000`、`compress_at_tokens=393000`、
+  `max_tokens=131000`，按标准值登记窗口 **524288**、输出 **131072**。
+
+### 代码设置
+
+`pkg/config/model_capabilities.go` 新增已知模型能力；`pkg/agent/instance.go`
+在初始化时应用，`pkg/agent/agent_command.go` 在 `/model` 切换时同步更新：
+
+| 模型 | context_window | max_tokens |
+|---|---:|---:|
+| `glm-5.3`（含 `-admin` 别名） | 524288 | 131072 |
+| `deepseek-v4.1-flash` | 1048576 | 32768 |
+
+配置显式值优先于内置能力；未登记模型继续使用全局配置或保守启发式。
+`ModelConfig` 同时支持 `context_window` / `max_tokens` 字段，便于后续按模型覆盖。
+
 ## 4. 配置止血建议
 
 - 每个工作区显式配置模型真实 `context_window` 与真实 `max_tokens`；

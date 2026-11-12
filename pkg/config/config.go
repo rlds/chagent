@@ -480,6 +480,8 @@ type ModelConfig struct {
 
 	// 可选的优化项
 	RPM                 int                  `json:"rpm,omitempty"`              // 每分钟请求数上限
+	ContextWindow       int                  `json:"context_window,omitempty"`   // 模型真实上下文窗口；0=使用全局/启发式
+	MaxTokens           int                  `json:"max_tokens,omitempty"`       // 模型输出预留；0=使用全局默认
 	MaxTokensField      string               `json:"max_tokens_field,omitempty"` // 最大 token 对应的字段名（例如 "max_completion_tokens"）
 	RequestTimeout      int                  `json:"request_timeout,omitempty"`
 	ThinkingLevel       string               `json:"thinking_level,omitempty"`        // 扩展思考：off|low|medium|high|xhigh|adaptive
