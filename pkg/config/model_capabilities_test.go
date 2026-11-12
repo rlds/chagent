@@ -8,9 +8,9 @@ func TestLookupModelCapability_KnownDefaults(t *testing.T) {
 		ctx  int
 		out  int
 	}{
-		{"glm-5.3", 524288, 131072},
-		{"glm-5.3-admin", 524288, 131072},
-		{"provider/glm-5.3", 524288, 131072},
+		{"glm-5.3", 1048576, 131072},
+		{"glm-5.3-admin", 1048576, 131072},
+		{"provider/glm-5.3", 1048576, 131072},
 		{"deepseek-v4.1-flash", 1048576, 32768},
 		{"unknown-model", 0, 0},
 	}
