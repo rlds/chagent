@@ -36,6 +36,9 @@ var knownModelCapabilities = map[string]ModelCapability{
 	"kimi-k2.5": {ContextWindow: 262144, MaxTokens: 32768},
 	"kimi2.5":   {ContextWindow: 262144, MaxTokens: 32768},
 
+	// Claude Opus 1M：上下文 1,000,000，最大输出 128,000。
+	"opus[1m]": {ContextWindow: 1000000, MaxTokens: 128000},
+
 	// 阿里云百炼官方：qwen3.8-flash 1,000,000 / 131,072。
 	"qwen3.8-flash": {ContextWindow: 1000000, MaxTokens: 131072},
 	// qwen-max-latest = qwen-max 滚动版本：32,768 / 8,192。
