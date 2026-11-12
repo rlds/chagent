@@ -49,6 +49,8 @@
 - [任务书执行审计](design/chagent-taskbook-audit.zh.md)
 - [DSH 模型执行与 Agent 循环](design/dsh-agent-loop-model-exec.zh.md)
 - [DSH 上下文与 Prompt](design/dsh-context-prompt.zh.md)
+- [上下文预算与 context_pressure 超限排查记录](design/context-budget-audit.zh.md)
+- [上下文预算审计复核（固定开销根因）](design/context-budget-audit-review-2026-11-12.zh.md)
 - [DSH → Chagent 迁移报告](design/dsh-migration-report.zh.md)
 - [裁剪清单](design/chess-trim-inventory.md)
 - [新实现 Agent 完整真实场景功能测试报告](design/agent-functional-test-report.zh.md)
