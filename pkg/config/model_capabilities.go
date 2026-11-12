@@ -17,8 +17,29 @@ type ModelCapability struct {
 //   - deepseek-v4.1-flash：DeepSeek 官方 1M 上下文窗口、最大输出 384K；
 //     历史请求 #7371 已成功处理 235406 prompt，验证大窗口路径。
 var knownModelCapabilities = map[string]ModelCapability{
-	"glm-5.3":             {ContextWindow: 1048576, MaxTokens: 131072},
-	"deepseek-v4.1-flash": {ContextWindow: 1048576, MaxTokens: 393216},
+	// 智谱官方：https://docs.bigmodel.cn/cn/guide/models/text/glm-5.3
+	"glm-5.3": {ContextWindow: 1048576, MaxTokens: 131072},
+	"glm-5.2": {ContextWindow: 1048576, MaxTokens: 131072},
+	"glm-5.1": {ContextWindow: 200000, MaxTokens: 131072},
+	"glm-5":   {ContextWindow: 200000, MaxTokens: 131072},
+	"glm-4.7": {ContextWindow: 200000, MaxTokens: 131072},
+	"glm4.7":  {ContextWindow: 200000, MaxTokens: 131072},
+
+	// DeepSeek 官方：V4 系列 1M 上下文、最大输出 384K。
+	"deepseek-v4-flash":        {ContextWindow: 1048576, MaxTokens: 393216},
+	"deepseek-v4-flash-0731":   {ContextWindow: 1048576, MaxTokens: 393216},
+	"deepseek-v4-pro":          {ContextWindow: 1048576, MaxTokens: 393216},
+	"deepseek-v4.1-flash":      {ContextWindow: 1048576, MaxTokens: 393216},
+	"deepseek-v4.1-flash-1017": {ContextWindow: 1048576, MaxTokens: 393216},
+
+	// Kimi 官方：K2 系列上下文 262,144；输出上限按 32K。
+	"kimi-k2.5": {ContextWindow: 262144, MaxTokens: 32768},
+	"kimi2.5":   {ContextWindow: 262144, MaxTokens: 32768},
+
+	// 阿里云百炼官方：qwen3.8-flash 1,000,000 / 131,072。
+	"qwen3.8-flash": {ContextWindow: 1000000, MaxTokens: 131072},
+	// qwen-max-latest = qwen-max 滚动版本：32,768 / 8,192。
+	"qwen-max-latest": {ContextWindow: 32768, MaxTokens: 8192},
 }
 
 // LookupModelCapability 返回模型已知能力。名称可以是别名，允许带 provider 前缀。
