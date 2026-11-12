@@ -321,6 +321,16 @@ func (al *AgentLoop) buildCommandsRuntime(
 			agent.Candidates = nextCandidates
 			agent.ThinkingLevel = parseThinkingLevel(modelCfg.ThinkingLevel)
 			agent.ThinkingLevelConfigured = isConfiguredThinkingLevel(modelCfg.ThinkingLevel)
+			if modelCfg.ContextWindow > 0 {
+				agent.ContextWindow = modelCfg.ContextWindow
+			} else if cap, ok := config.LookupModelCapability(value); ok {
+				agent.ContextWindow = cap.ContextWindow
+			}
+			if modelCfg.MaxTokens > 0 {
+				agent.MaxTokens = modelCfg.MaxTokens
+			} else if cap, ok := config.LookupModelCapability(value); ok {
+				agent.MaxTokens = cap.MaxTokens
+			}
 
 			if oldProvider != nil && oldProvider != nextProvider {
 				if stateful, ok := oldProvider.(providers.StatefulProvider); ok {

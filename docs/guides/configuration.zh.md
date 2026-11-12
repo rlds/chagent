@@ -66,10 +66,10 @@ pico 通道内置：`config.json` 不需要 `channels` 与 token。网关与外�
 | 配置 | 默认 | 说明 |
 |---|---|---|
 | `agents.defaults.max_tool_iterations` | 300 | 单 turn 工具迭代安全阀（不是正常终止条件） |
-| `agents.defaults.max_tokens` | 8192 | 输出预留 |
+| `agents.defaults.max_tokens` | 32768 | 输出预留 |
 | `agents.defaults.context_window` | `max_tokens * 4` | 未显式配置时按输出预留 4 倍估算 |
-| `agents.defaults.steering_mode` | `one-at-a-time` | 运行中插入用户消息的策略 |
-| `agents.defaults.max_parallel_turns` | 0（串行） | 并发 turn 上限 |
+| `agents.defaults.steering_mode` | `all` | 运行中插入用户消息的策略 |
+| `agents.defaults.max_parallel_turns` | 20 | 并发 turn 上限 |
 | `agents.defaults.max_llm_retries` | 2 | 同路由瞬时错误重试次数 |
 | `agents.defaults.llm_retry_backoff_secs` | 2 | 重试退避基数（秒，线性） |
 

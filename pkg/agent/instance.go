@@ -271,24 +271,43 @@ func NewAgentInstance(
 		maxTokens = 8192
 	}
 
-	contextWindow := defaults.ContextWindow
-	if contextWindow == 0 {
-		// 默认启发式：输出 token 上限的 4 倍。
-		// 大多数模型的上下文窗口远高于其输出上限
-		// （例如 GPT-4o 128k ctx / 16k out，Claude 200k ctx / 8k out）。
-		// 4 倍是保守的下界，既能避免过早摘要，又仍然安全 ——
-		// 响应式的 forceCompression 会处理任何超出。
-		contextWindow = maxTokens * 4
-	}
-
 	temperature := 0.7
 	if defaults.Temperature != nil {
 		temperature = *defaults.Temperature
 	}
 
+	contextWindow := defaults.ContextWindow
+	modelCfg, modelCfgErr := cfg.GetModelConfig(model)
+
+	// 模型已知能力优先于全局默认；未配置 context_window/max_tokens 时补真实值。
+	if modelCfg != nil {
+		if modelCfg.ContextWindow > 0 {
+			contextWindow = modelCfg.ContextWindow
+		}
+		if modelCfg.MaxTokens > 0 {
+			maxTokens = modelCfg.MaxTokens
+		}
+	}
+	if cap, ok := config.LookupModelCapability(model); ok {
+		if modelCfg == nil || modelCfg.ContextWindow <= 0 {
+			contextWindow = cap.ContextWindow
+		}
+		if modelCfg == nil || modelCfg.MaxTokens <= 0 {
+			maxTokens = cap.MaxTokens
+		}
+	}
+	if contextWindow == 0 {
+		contextWindow = maxTokens * 4
+	}
+	if contextWindow <= maxTokens {
+		logger.WarnCF("agent", "context_window must be greater than max_tokens; using fallback",
+			map[string]any{"context_window": contextWindow, "max_tokens": maxTokens})
+		contextWindow = maxTokens * 4
+	}
+
 	var thinkingLevelStr string
-	if mc, err := cfg.GetModelConfig(model); err == nil {
-		thinkingLevelStr = mc.ThinkingLevel
+	if modelCfgErr == nil && modelCfg != nil {
+		thinkingLevelStr = modelCfg.ThinkingLevel
 	}
 	thinkingLevel := parseThinkingLevel(thinkingLevelStr)
 	thinkingLevelConfigured := isConfiguredThinkingLevel(thinkingLevelStr)
