@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/rlds/chagent/pkg/tools"
 )
@@ -36,6 +37,11 @@ type toolBatchOutcome struct {
 	Result     *tools.ToolResult
 	Skipped    bool
 	SkipReason string
+
+	// StartedAt/Duration 记录实际执行的时间窗，供 execution.report 使用。
+	// 被跳过（未派发）的调用保持零值。
+	StartedAt time.Time
+	Duration  time.Duration
 }
 
 // execToolBatchFn 执行一次工具调用。返回错误会被视为仅限该调用的工具失败；
@@ -184,7 +190,9 @@ func executeToolBatchItem(
 		}
 	}()
 
+	outcome.StartedAt = time.Now()
 	result, err := execFn(ctx, item.Index, item.Tool, item.Args)
+	outcome.Duration = time.Since(outcome.StartedAt)
 	if err != nil {
 		outcome.Result = tools.ErrorResult(fmt.Sprintf("工具执行失败：%v", err))
 		return outcome

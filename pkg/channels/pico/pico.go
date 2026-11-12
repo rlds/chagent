@@ -363,6 +363,49 @@ func (c *PicoChannel) Send(ctx context.Context, msg bus.OutboundMessage) ([]stri
 	return []string{msgID}, nil
 }
 
+// SendExecutionReport 实现 channels.ExecutionReportSender。
+//
+// 它把一条 `execution.report` 帧广播到 chatID 对应会话的连接上：
+//   - 帧的 SessionID 由 broadcastToSession 从 "pico:<sessionID>" 中解析；
+//   - 帧的 ID 与载荷 message_id 复用载荷里的稳定 event_id，使对端可以按
+//     event_id 幂等去重；
+//   - 没有任何活动连接时立即返回 ErrSendFailed（不重试、不排队）。
+func (c *PicoChannel) SendExecutionReport(
+	ctx context.Context,
+	chatID string,
+	payload map[string]any,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !c.IsRunning() {
+		return channels.ErrNotRunning
+	}
+	if strings.TrimSpace(chatID) == "" {
+		return channels.ErrSendFailed
+	}
+
+	reportPayload := make(map[string]any, len(payload)+1)
+	for key, value := range payload {
+		reportPayload[key] = value
+	}
+	if _, ok := reportPayload[PayloadKeyKind]; !ok {
+		reportPayload[PayloadKeyKind] = MessageKindExecutionReport
+	}
+	eventID, _ := reportPayload["event_id"].(string)
+	if strings.TrimSpace(eventID) != "" {
+		reportPayload["message_id"] = eventID
+	}
+
+	report := newMessage(TypeExecutionReport, reportPayload)
+	report.ID = strings.TrimSpace(eventID)
+
+	if err := c.broadcastToSession(chatID, report); err != nil {
+		return err
+	}
+	return nil
+}
+
 // EditMessage 实现 channels.MessageEditor。
 func (c *PicoChannel) EditMessage(ctx context.Context, chatID string, messageID string, content string) error {
 	return c.editMessage(ctx, chatID, messageID, content, nil)

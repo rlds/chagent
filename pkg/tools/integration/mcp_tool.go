@@ -135,6 +135,26 @@ func sanitizeIdentifierComponent(s string) string {
 	return result
 }
 
+// MCPServerName 返回该 MCP 工具所属的服务器名（原始大小写，未规范化）。
+//
+// 它供执行上报（execution.report）解析 mcp_server 使用：扁平化后的工具名
+// `mcp_<server>_<tool>` 在服务器名或工具名含下划线时无法可靠反解，
+// 从包装器直接读取来源名才是权威答案。
+func (t *MCPTool) MCPServerName() string {
+	if t == nil {
+		return ""
+	}
+	return t.serverName
+}
+
+// MCPToolName 返回 MCP 服务器侧的原始工具名（未规范化）。
+func (t *MCPTool) MCPToolName() string {
+	if t == nil || t.tool == nil {
+		return ""
+	}
+	return t.tool.Name
+}
+
 // Name 返回工具名，并加上服务器名前缀。
 // 总长度上限为 64 个字符（兼容 OpenAI 的 API 限制）。
 // 当规范化有损或名称被截断时，会追加原始（未规范化）服务器名和工具名的

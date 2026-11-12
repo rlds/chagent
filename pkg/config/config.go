@@ -38,8 +38,11 @@ type Config struct {
 	Gateway   GatewayConfig   `json:"gateway"             yaml:"-"`
 	Events    EventsConfig    `json:"events,omitempty"    yaml:"-"`
 	Hooks     HooksConfig     `json:"hooks,omitempty"     yaml:"-"`
-	Tools     ToolsConfig     `json:"tools"               yaml:",inline"`
-	Heartbeat HeartbeatConfig `json:"heartbeat"           yaml:"-"`
+	// ExecutionReport 控制工具执行完成后是否向 pico 通道上报 execution.report。
+	// 默认开启：字段缺省（nil）或未明确写成 false 都视为开启。
+	ExecutionReport ExecutionReportConfig `json:"execution_report,omitempty" yaml:"-"`
+	Tools           ToolsConfig           `json:"tools"               yaml:",inline"`
+	Heartbeat       HeartbeatConfig       `json:"heartbeat"           yaml:"-"`
 	// BuildInfo 包含构建时的版本信息。
 	BuildInfo BuildInfo       `json:"build_info,omitempty" yaml:"-"`
 	AgentInfo AgentInfoConfig `json:"agentinfo,omitempty" yaml:"-"`
@@ -92,6 +95,45 @@ type HooksConfig struct {
 	Defaults  HookDefaultsConfig           `json:"defaults,omitempty"`
 	Builtins  map[string]BuiltinHookConfig `json:"builtins,omitempty"`
 	Processes map[string]ProcessHookConfig `json:"processes,omitempty"`
+}
+
+// ExecutionReportConfig 控制工具执行完成后的 pico `execution.report` 上报。
+//
+// 语义刻意设计成"默认开启"：
+//   - 字段完全缺失（nil）→ 开启；
+//   - `{"execution_report": {}}` → 开启；
+//   - `{"execution_report": {"enabled": true}}` → 开启；
+//   - `{"execution_report": {"enabled": false}}` → 唯一关闭方式。
+//
+// 使用指针而不是 bool，是为了让"未出现"与"显式 false"可区分：bool 零值
+// 会让任何按结构体字面量构造的配置（包括测试）静默关闭上报。
+type ExecutionReportConfig struct {
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+// IsEnabled 报告是否应生成并发送 execution.report。
+// 空配置、nil 接收者以及未显式设置都视为开启。
+func (c ExecutionReportConfig) IsEnabled() bool {
+	if c.Enabled == nil {
+		return true
+	}
+	return *c.Enabled
+}
+
+// SetEnabled 设置显式开关，主要供测试与程序化构造配置使用。
+func (c *ExecutionReportConfig) SetEnabled(enabled bool) {
+	if c == nil {
+		return
+	}
+	c.Enabled = &enabled
+}
+
+// GetExecutionReport 返回 execution_report 配置（nil Config 安全）。
+func (c *Config) GetExecutionReport() ExecutionReportConfig {
+	if c == nil {
+		return ExecutionReportConfig{}
+	}
+	return c.ExecutionReport
 }
 
 type HookDefaultsConfig struct {

@@ -133,6 +133,9 @@
     "builtins": {},
     "processes": {}
   },
+  "execution_report": {
+    "enabled": true
+  },
   "events": {
     "logging": {
       "enabled": true,

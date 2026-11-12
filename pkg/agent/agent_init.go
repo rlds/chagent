@@ -82,6 +82,8 @@ func NewAgentLoop(
 	al.hooks = NewHookManager(al.runtimeEvents.Channel())
 	configureHookManagerFromConfig(al.hooks, cfg)
 	al.contextManager = al.resolveContextManager()
+	// execution.report 发送器：它自己按当前配置判断开关，因此 Reload 后无需重建。
+	al.executionReports = newExecutionReportSink(al)
 
 	// 向所有 agent 注册共享工具（此时 al 已创建完成）
 	registerSharedTools(al, cfg, msgBus, registry, provider)

@@ -56,7 +56,10 @@ type AgentLoop struct {
 	steering       *steeringQueue
 	pendingSkills  sync.Map
 	pendingStops   sync.Map
-	mu             sync.RWMutex
+	// executionReports 是工具执行上报（execution.report）的异步发送器。
+	// 默认开启；显式配置 execution_report.enabled=false 时不构建载荷、不发送。
+	executionReports *executionReportSink
+	mu               sync.RWMutex
 
 	// workerSem 限制并发处理轮次的 worker 数量。
 	workerSem chan struct{}
@@ -349,6 +352,9 @@ func (al *AgentLoop) Close() {
 	}
 
 	al.GetRegistry().Close()
+	if al.executionReports != nil {
+		al.executionReports.close()
+	}
 	if al.hooks != nil {
 		al.hooks.Close()
 	}
