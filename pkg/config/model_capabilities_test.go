@@ -19,6 +19,7 @@ func TestLookupModelCapability_KnownDefaults(t *testing.T) {
 		{"kimi-k2.5", 262144, 32768},
 		{"qwen3.8-flash", 1000000, 131072},
 		{"qwen-max-latest", 32768, 8192},
+		{"opus[1m]", 1000000, 128000},
 		{"unknown-model", 0, 0},
 	}
 	for _, tc := range cases {
