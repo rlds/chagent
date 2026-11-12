@@ -14,11 +14,11 @@ type ModelCapability struct {
 // 依据：
 //   - glm-5.3：智谱官方上下文窗口 1,048,576，最大输出 131,072；
 //     早期运行日志按旧的 524288 假设显示 524000，本表已修正为 1M；
-//   - deepseek-v4.1-flash：model-relay 调用 #7371 成功处理
-//     prompt 235406 + max_tokens 32768；DeepSeek 当前上下文窗口按 1,048,576 登记。
+//   - deepseek-v4.1-flash：DeepSeek 官方 1M 上下文窗口、最大输出 384K；
+//     历史请求 #7371 已成功处理 235406 prompt，验证大窗口路径。
 var knownModelCapabilities = map[string]ModelCapability{
 	"glm-5.3":             {ContextWindow: 1048576, MaxTokens: 131072},
-	"deepseek-v4.1-flash": {ContextWindow: 1048576, MaxTokens: 32768},
+	"deepseek-v4.1-flash": {ContextWindow: 1048576, MaxTokens: 393216},
 }
 
 // LookupModelCapability 返回模型已知能力。名称可以是别名，允许带 provider 前缀。

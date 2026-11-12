@@ -11,7 +11,7 @@ func TestLookupModelCapability_KnownDefaults(t *testing.T) {
 		{"glm-5.3", 1048576, 131072},
 		{"glm-5.3-admin", 1048576, 131072},
 		{"provider/glm-5.3", 1048576, 131072},
-		{"deepseek-v4.1-flash", 1048576, 32768},
+		{"deepseek-v4.1-flash", 1048576, 393216},
 		{"unknown-model", 0, 0},
 	}
 	for _, tc := range cases {

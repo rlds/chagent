@@ -17,7 +17,7 @@
       "api_base": "https://api.example.invalid/v1",
       "api_key": "YOUR_API_KEY",
       "context_window": 1048576,
-      "max_tokens": 32768
+      "max_tokens": 393216
     }
   ],
   "agents": {
