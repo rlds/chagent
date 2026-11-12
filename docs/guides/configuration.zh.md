@@ -119,6 +119,50 @@ elicitation、tasks）的支持矩阵详见 [MCP 支持矩阵](../reference/mcp-
 Hook 不配置时不生效，默认超时值内置；
 需要扩展时写 `hooks.builtins` / `hooks.processes`。详见 [工具参考](../reference/tools.zh.md)。
 
+### 3.4 工具执行上报（execution.report）
+
+Pico 通道会在每次工具执行完成后，向同一会话发送一条 `execution.report` 帧
+（`TypeExecutionReport`，载荷 `kind=execution_report`）。它**默认开启**，
+且只有显式写成 `false` 才关闭：
+
+```json
+{
+  "execution_report": {
+    "enabled": true
+  }
+}
+```
+
+| 写法 | 行为 |
+|---|---|
+| 不写 `execution_report` | 开启（默认） |
+| `"execution_report": {}` | 开启 |
+| `"execution_report": {"enabled": true}` | 开启 |
+| `"execution_report": {"enabled": false}` | **关闭**：不构建载荷、不入队、不发送 |
+
+载荷字段（snake_case）：`event_id`、`agent_nickname`、`session_id`、`chat_id`、
+`user_id`、`tool_name`、`tool_call_id`、`execution_type`（`skill`/`mcp`/`tool`）、
+`skill_name`、`mcp_server`、`mcp_tool`、`status`（`success`/`error`）、`started_at`、
+`ended_at`（RFC3339Nano）、`duration_ms`、`trigger`、`error`、`metadata`
+（`model`/`turn`/`iteration`/`agent_id`/`channel`），以及只含摘要的
+`arguments`（`keys`/`count`/`digest`）与 `result`（`chars`/`digest`/`error`）。
+
+行为约定：
+
+- `event_id = "exec-" + sha256(session_id + "|" + tool_call_id)[:24]`，同一次工具调用
+  恒定，Server 可按它幂等去重；`tool_call_id` 缺失时退回 UUID。
+- 上报异步进行（有界队列 256 + 单 goroutine 发送，超时 2s）。队列满、通道未连接、
+  通道不支持上报都只记日志，**不影响工具结果或主循环**。
+- 只有当前回合的通道能上报时才实际发送：`pico`（gateway）与 `pico_client`（客户端）
+  实现了上报；CLI 等通道会被跳过。
+- 参数与结果**只上报摘要**（键名/数量/长度/哈希），不上报完整结果或大参数明文；
+  `error` 字段会截断到 500 字符并经过敏感数据过滤。
+- 走 `AfterTool` hook 中止的回合不上报（由 hook 决定）；被 turn-profile 拒绝或批次
+  中止而未执行的调用也不上报。
+
+> 无废弃项：该配置是新增键，旧配置无需修改；`hooks` 不是替代路径（挂载 hook 会关闭
+> 并发批次工具路径，故内建上报刻意不经过 hook）。
+
 ---
 
 ## 4. 工作区布局

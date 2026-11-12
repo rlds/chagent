@@ -632,6 +632,19 @@ toolLoop:
 			toolResult = tools.ErrorResult("hook 返回了 nil 工具结果")
 		}
 
+		// 工具执行完成后的 execution.report：非阻塞入队，失败只记日志。
+		// 放在 AfterTool 之后，上报的 tool/result 反映模型最终看到的结果；
+		// hook 主动中止回合时由 hook 自行决定，不在这里上报。
+		al.reportToolExecution(ts, toolExecutionReport{
+			ToolName:   toolName,
+			ToolCallID: toolCallID,
+			Arguments:  toolArgs,
+			Result:     toolResult,
+			StartedAt:  toolStart,
+			Duration:   toolDuration,
+			Iteration:  iteration,
+		})
+
 		if len(toolResult.Media) > 0 && toolResult.ResponseHandled {
 			parts := make([]bus.MediaPart, 0, len(toolResult.Media))
 			for _, ref := range toolResult.Media {
@@ -1134,6 +1147,18 @@ func (p *Pipeline) executeToolsConcurrentBatch(
 		}
 		toolName := item.toolName
 		toolArgs := item.toolArgs
+
+		// 并发批次路径的 execution.report：与串行路径同一入口、同样非阻塞。
+		// outcome 带实际执行时间窗；被跳过的调用在上面 continue 掉，不会上报。
+		al.reportToolExecution(ts, toolExecutionReport{
+			ToolName:   toolName,
+			ToolCallID: item.call.ID,
+			Arguments:  toolArgs,
+			Result:     toolResult,
+			StartedAt:  outcome.StartedAt,
+			Duration:   outcome.Duration,
+			Iteration:  iteration,
+		})
 
 		if len(toolResult.Media) > 0 && toolResult.ResponseHandled {
 			parts := make([]bus.MediaPart, 0, len(toolResult.Media))

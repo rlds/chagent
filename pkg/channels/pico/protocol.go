@@ -22,6 +22,10 @@ const (
 	TypeError         = "error"
 	TypePong          = "pong"
 
+	// TypeExecutionReport 由 chagent 发往 pico 对端：一次工具执行的完成上报。
+	// 它与 message.* 并列，不是聊天消息：不进入会话历史，也不参与消息编辑/删除。
+	TypeExecutionReport = "execution.report"
+
 	PayloadKeyContent      = "content"
 	PayloadKeyThought      = "thought"
 	PayloadKeyKind         = "kind"
@@ -33,6 +37,10 @@ const (
 
 	MessageKindThought   = "thought"
 	MessageKindToolCalls = "tool_calls"
+
+	// MessageKindExecutionReport 是 execution.report 载荷的 kind 值，
+	// 供同时消费 message.* 与 execution.report 的对端统一分流。
+	MessageKindExecutionReport = "execution_report"
 )
 
 // PicoMessage 是所有 Pico 协议消息的线上传输格式。

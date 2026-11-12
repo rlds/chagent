@@ -315,6 +315,46 @@ func (c *PicoClientChannel) Send(ctx context.Context, msg bus.OutboundMessage) (
 	return nil, pc.writeJSON(outMsg)
 }
 
+// SendExecutionReport 实现 channels.ExecutionReportSender。
+//
+// 客户端模式下执行上报是 client → server 方向：复用已建立的长连接发送
+// `execution.report` 帧。没有连接时立即返回 ErrSendFailed，调用方只记日志。
+func (c *PicoClientChannel) SendExecutionReport(
+	ctx context.Context,
+	chatID string,
+	payload map[string]any,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !c.IsRunning() {
+		return channels.ErrNotRunning
+	}
+	c.mu.Lock()
+	pc := c.conn
+	c.mu.Unlock()
+	if pc == nil || pc.closed.Load() {
+		return channels.ErrSendFailed
+	}
+
+	reportPayload := make(map[string]any, len(payload)+1)
+	for key, value := range payload {
+		reportPayload[key] = value
+	}
+	if _, ok := reportPayload[PayloadKeyKind]; !ok {
+		reportPayload[PayloadKeyKind] = MessageKindExecutionReport
+	}
+	eventID, _ := reportPayload["event_id"].(string)
+	if strings.TrimSpace(eventID) != "" {
+		reportPayload["message_id"] = eventID
+	}
+
+	outMsg := newMessage(TypeExecutionReport, reportPayload)
+	outMsg.ID = strings.TrimSpace(eventID)
+	outMsg.SessionID = strings.TrimPrefix(chatID, config.ChannelPicoClient+":")
+	return pc.writeJSON(outMsg)
+}
+
 // StartTyping 实现 channels.TypingCapable。
 func (c *PicoClientChannel) StartTyping(ctx context.Context, chatID string) (func(), error) {
 	c.mu.Lock()
