@@ -92,7 +92,7 @@
 
 - `deepseek-v4.1-flash`：model-relay 调用记录 **#7371** 成功处理
   `prompt_tokens=235406`、`max_tokens=32768`，说明真实窗口至少能容纳
-  `235406 + 32768 = 268174`；按 DeepSeek 当前上下文能力登记窗口 **1048576**。
+  `235406 + 32768 = 268174`；按 DeepSeek 官方文档登记窗口 **1048576**、最大输出 **393216**。
 - `glm-5.3`：运行态 `/context` 记录
   `total_tokens=524000`、`compress_at_tokens=393000`、
   `max_tokens=131000`，按官方参数登记窗口 **1048576**、输出 **131072**。
@@ -105,7 +105,7 @@
 | 模型 | context_window | max_tokens |
 |---|---:|---:|
 | `glm-5.3`（含 `-admin` 别名） | 1048576 | 131072 |
-| `deepseek-v4.1-flash` | 1048576 | 32768 |
+| `deepseek-v4.1-flash` | 1048576 | 393216 |
 
 配置显式值优先于内置能力；未登记模型继续使用全局配置或保守启发式。
 `ModelConfig` 同时支持 `context_window` / `max_tokens` 字段，便于后续按模型覆盖。
