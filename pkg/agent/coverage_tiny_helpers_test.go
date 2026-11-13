@@ -277,3 +277,48 @@ func TestCoverExecuteToolsRespondMediaBusPath(t *testing.T) {
 		t.Fatalf("respond media turn = %v", err)
 	}
 }
+
+// TestCoverLegacySummarizeSessionNoEmptyBatch 回归线上空摘要请求：
+// validMessages 只有一个开头的 user 边界、后面全是 assistant 时，
+// 旧的 findNearestUserMessage 会返回 0，导致 part1 为空，摘要请求
+// 只剩“对话内容：”前缀。修复后必须至少带一条消息。
+func TestCoverLegacySummarizeSessionNoEmptyBatch(t *testing.T) {
+	provider := &loopFixProvider{}
+	al, agent, cleanup := newHookTestLoop(t, provider)
+	defer cleanup()
+	legacy, ok := al.contextManager.(*legacyContextManager)
+	if !ok {
+		t.Skipf("context manager 不是 legacy 实现: %T", al.contextManager)
+	}
+
+	sessionKey := "coverage-summarize-no-empty-batch"
+	agent.Sessions.AddMessage(sessionKey, "user", "唯一开场用户消息")
+	for i := 0; i < 12; i++ {
+		agent.Sessions.AddMessage(sessionKey, "assistant", "中间助手回复")
+	}
+	// 保留窗口（最后 4 条）内再放一个真实 user，保证 safeCut 落在中间。
+	agent.Sessions.AddMessage(sessionKey, "user", "结尾用户消息")
+	agent.Sessions.AddMessage(sessionKey, "assistant", "结尾助手回复")
+	agent.Sessions.AddMessage(sessionKey, "assistant", "结尾助手回复2")
+	agent.Sessions.AddMessage(sessionKey, "assistant", "结尾助手回复3")
+
+	legacy.summarizeSession(agent, sessionKey)
+
+	provider.mu.Lock()
+	calls := append([][]providers.Message(nil), provider.calls...)
+	provider.mu.Unlock()
+	if len(calls) == 0 {
+		t.Fatal("summarizeSession 未发起摘要请求")
+	}
+	for i, call := range calls {
+		if len(call) == 0 {
+			continue
+		}
+		prompt := call[0].Content
+		if strings.Contains(prompt, "为以下对话片段生成简明摘要") &&
+			!strings.Contains(prompt, "assistant:") &&
+			!strings.Contains(prompt, "user:") {
+			t.Fatalf("第 %d 次摘要请求没有对话内容: %q", i, prompt)
+		}
+	}
+}

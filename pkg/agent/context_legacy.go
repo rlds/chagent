@@ -281,6 +281,20 @@ func (m *legacyContextManager) summarizeSession(agent *AgentInstance, sessionKey
 	if len(validMessages) > maxSummarizationMessages {
 		mid := len(validMessages) / 2
 		mid = m.findNearestUserMessage(validMessages, mid)
+		// findNearestUserMessage 可能返回 0：当 validMessages[0] 是唯一
+		// 的 user turn、且到中点之间没有新的 user 边界时，向后搜索会
+		// 回到 0。直接切分会产生空的 part1，summarizeBatch 只发送
+		// “对话内容：”而无任何消息（线上 48-token 空摘要请求的根因）。
+		// 这里保证两段均非空；无法找到 user 边界时按中点切分。
+		if mid <= 0 || mid >= len(validMessages) {
+			mid = len(validMessages) / 2
+		}
+		if mid <= 0 {
+			mid = 1
+		}
+		if mid >= len(validMessages) {
+			mid = len(validMessages) - 1
+		}
 
 		part1 := validMessages[:mid]
 		part2 := validMessages[mid:]
@@ -475,6 +489,11 @@ func (m *legacyContextManager) summarizeBatch(
 		fallbackMinContentLength  = 200
 		fallbackMaxContentPercent = 10
 	)
+
+	if len(batch) == 0 {
+		// 防御：空 batch 不能生成只有提示前缀的摘要请求。
+		return existingSummary, nil
+	}
 
 	var sb strings.Builder
 	sb.WriteString("为以下对话片段生成简明摘要，保留核心上下文与关键要点。\n")
