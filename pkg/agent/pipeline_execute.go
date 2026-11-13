@@ -209,7 +209,6 @@ toolLoop:
 					)
 
 					if shouldPublishToolFeedback(al.cfg, ts) && ts.channel != "pico" {
-						toolFeedbackMaxLen := al.cfg.Agents.Defaults.GetToolFeedbackMaxArgsLength()
 						toolFeedbackExplanation := toolFeedbackExplanationForToolCall(
 							exec.response,
 							tc,
@@ -218,7 +217,7 @@ toolLoop:
 						feedbackMsg := utils.FormatToolFeedbackMessage(
 							toolName,
 							toolFeedbackExplanation,
-							toolFeedbackArgsPreview(toolArgs, toolFeedbackMaxLen),
+							toolFeedbackArgsPreview(toolArgs, 0),
 						)
 						fbCtx, fbCancel := context.WithTimeout(turnCtx, 3*time.Second)
 						_ = al.bus.PublishOutbound(fbCtx, outboundMessageForTurnWithOptions(
@@ -506,7 +505,6 @@ toolLoop:
 		)
 
 		if shouldPublishToolFeedback(al.cfg, ts) && ts.channel != "pico" {
-			toolFeedbackMaxLen := al.cfg.Agents.Defaults.GetToolFeedbackMaxArgsLength()
 			toolFeedbackExplanation := toolFeedbackExplanationForToolCall(
 				exec.response,
 				tc,
@@ -515,7 +513,7 @@ toolLoop:
 			feedbackMsg := utils.FormatToolFeedbackMessage(
 				toolName,
 				toolFeedbackExplanation,
-				toolFeedbackArgsPreview(toolArgs, toolFeedbackMaxLen),
+				toolFeedbackArgsPreview(toolArgs, 0),
 			)
 			fbCtx, fbCancel := context.WithTimeout(turnCtx, 3*time.Second)
 			_ = al.bus.PublishOutbound(fbCtx, outboundMessageForTurnWithOptions(
@@ -1395,7 +1393,6 @@ func (p *Pipeline) executeToolCallForBatch(
 	)
 
 	if shouldPublishToolFeedback(al.cfg, ts) && ts.channel != "pico" {
-		toolFeedbackMaxLen := al.cfg.Agents.Defaults.GetToolFeedbackMaxArgsLength()
 		toolFeedbackExplanation := toolFeedbackExplanationForToolCall(
 			exec.response,
 			call,
@@ -1404,7 +1401,7 @@ func (p *Pipeline) executeToolCallForBatch(
 		feedbackMsg := utils.FormatToolFeedbackMessage(
 			toolName,
 			toolFeedbackExplanation,
-			toolFeedbackArgsPreview(toolArgs, toolFeedbackMaxLen),
+			toolFeedbackArgsPreview(toolArgs, 0),
 		)
 		fbCtx, fbCancel := context.WithTimeout(callCtx, 3*time.Second)
 		_ = al.bus.PublishOutbound(fbCtx, outboundMessageForTurnWithOptions(

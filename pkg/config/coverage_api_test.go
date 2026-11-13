@@ -19,13 +19,6 @@ func TestCoverageSimpleGetters(t *testing.T) {
 	if got := defaults.GetMaxMediaSize(); got != 123 {
 		t.Fatalf("set GetMaxMediaSize() = %d", got)
 	}
-	if got := defaults.GetToolFeedbackMaxArgsLength(); got != 300 {
-		t.Fatalf("zero GetToolFeedbackMaxArgsLength() = %d", got)
-	}
-	defaults.ToolFeedback.MaxArgsLength = 64
-	if got := defaults.GetToolFeedbackMaxArgsLength(); got != 64 {
-		t.Fatalf("set GetToolFeedbackMaxArgsLength() = %d", got)
-	}
 	defaults.ToolFeedback.Enabled = true
 	defaults.ToolFeedback.SeparateMessages = true
 	if !defaults.IsToolFeedbackEnabled() || !defaults.IsToolFeedbackSeparateMessagesEnabled() {

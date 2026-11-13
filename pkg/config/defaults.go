@@ -37,7 +37,6 @@ func DefaultConfig() *Config {
 				MaxParallelTurns:          20,
 				ToolFeedback: ToolFeedbackConfig{
 					Enabled:          false,
-					MaxArgsLength:    300,
 					SeparateMessages: false,
 				},
 				SplitOnMarker:       false,

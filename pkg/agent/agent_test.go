@@ -5769,8 +5769,7 @@ func TestProcessHeartbeat_DoesNotPublishToolFeedback(t *testing.T) {
 				MaxTokens:         4096,
 				MaxToolIterations: 10,
 				ToolFeedback: config.ToolFeedbackConfig{
-					Enabled:       true,
-					MaxArgsLength: 300,
+					Enabled: true,
 				},
 			},
 		},
@@ -5815,8 +5814,7 @@ func TestProcessMessage_PublishesToolFeedbackWhenEnabled(t *testing.T) {
 				MaxTokens:         4096,
 				MaxToolIterations: 10,
 				ToolFeedback: config.ToolFeedbackConfig{
-					Enabled:       true,
-					MaxArgsLength: 300,
+					Enabled: true,
 				},
 			},
 		},
@@ -6079,8 +6077,7 @@ func TestProcessMessage_DoesNotLeakReasoningContentInToolFeedback(t *testing.T) 
 				MaxTokens:         4096,
 				MaxToolIterations: 10,
 				ToolFeedback: config.ToolFeedbackConfig{
-					Enabled:       true,
-					MaxArgsLength: 300,
+					Enabled: true,
 				},
 			},
 		},

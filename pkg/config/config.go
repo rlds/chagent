@@ -333,7 +333,6 @@ type SubTurnConfig struct {
 
 type ToolFeedbackConfig struct {
 	Enabled          bool `json:"enabled"`
-	MaxArgsLength    int  `json:"max_args_length"`
 	SeparateMessages bool `json:"separate_messages"`
 }
 
@@ -379,14 +378,6 @@ func (d *AgentDefaults) GetMaxMediaSize() int {
 		return d.MaxMediaSize
 	}
 	return DefaultMaxMediaSize
-}
-
-// GetToolFeedbackMaxArgsLength 返回工具参数预览的最大可见文本长度。
-func (d *AgentDefaults) GetToolFeedbackMaxArgsLength() int {
-	if d.ToolFeedback.MaxArgsLength > 0 {
-		return d.ToolFeedback.MaxArgsLength
-	}
-	return 300
 }
 
 // IsToolFeedbackEnabled 返回是否应当向聊天发送工具反馈消息。
