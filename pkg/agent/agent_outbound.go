@@ -200,10 +200,10 @@ func (al *AgentLoop) publishPicoToolCallInterim(
 		return
 	}
 
-	visibleToolCalls := utils.BuildVisibleToolCalls(
-		toolCalls,
-		al.cfg.Agents.Defaults.GetToolFeedbackMaxArgsLength(),
-	)
+	// tool_calls 是任务详情/对接接口的事实数据，必须完整上报参数；
+	// GetToolFeedbackMaxArgsLength 仅用于 tool_feedback 的展示预览，不能
+	// 复用到 tool_calls，否则长参数会在任务执行过程中被截断。
+	visibleToolCalls := utils.BuildVisibleToolCalls(toolCalls, 0)
 	duplicateToolCallContent := len(visibleToolCalls) > 0 &&
 		utils.ToolCallExplanationDuplicatesContent(content, toolCalls)
 
