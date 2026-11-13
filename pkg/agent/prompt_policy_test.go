@@ -32,8 +32,8 @@ const (
 	p22MemoryCore      = "只保留跨会话仍然成立的核心内容"
 	p23RoleHeader      = "## 角色判定与履职"
 	p23RoleSnippet     = "身份类型与角色由任务目标、业务场景、输入材料与验收标准决定"
-	p23DutySnippet     = "判定身份后严格按该角色职责执行"
-	p23OutputSnippet   = "每次任务判定或阶段汇报先给出身份类型与角色"
+	p23DutySnippet     = "判定身份后，补充该身份对应的职责要求"
+	p23OutputSnippet   = "仅当本任务判定过身份类型或行业/公司类型时"
 )
 
 func newPolicyTestBuilder(t *testing.T) *ContextBuilder {
@@ -251,11 +251,14 @@ func TestRolePolicyPromptEnabledByDefault(t *testing.T) {
 		p23RoleSnippet,
 		p23DutySnippet,
 		p23OutputSnippet,
-		"必须先判定自己在该任务中的身份类型与角色",
-		"身份类型与职责是任务的必判定项",
+		"身份类型与角色不是每个任务的必判定项",
+		"仅当任务目标、验收标准或交付物需要明确的专业职责",
+		"跳过身份判定",
+		"未判定身份时，按任务目标、验收标准与通用工程规范约束执行",
 		"身份类型覆盖商业公司具有的角色",
-		"可进一步判定行业/公司类型与业务场景",
-		"行业/公司类型判定是可选项，不要求必须判定",
+		"才进一步判定行业/公司类型与业务场景",
+		"行业/公司类型不是必判定项",
+		"不得因无法判定而停止任务",
 		"电商、生鲜电商、半导体、芯片设计、AI、机械设计、无人机、机器人、餐饮",
 		"软件开发工程师（前端/后端/移动端）",
 		"架构师",
@@ -289,16 +292,24 @@ func TestRolePolicyPromptEnabledByDefault(t *testing.T) {
 		"半导体/芯片设计关注设计",
 		"无人机/机器人关注控制",
 		"餐饮关注门店运营",
-		"任务完成前核对身份类型、角色、职责、专业标准（以及已判定的行业/公司类型标准）、验收标准与证据是否一致",
+		"仅当本任务判定过身份类型或行业/公司类型时",
+		"未判定时不得为了形式补写身份或行业",
+		"任务完成前核对：如已判定身份/行业标准",
+		"未判定则核对任务验收标准与证据是否一致",
 		"**角色判定**",
-		"身份类型与职责",
 		"按角色职责选用对应技能和工具",
-		"在 tasks/TASKS.md 中为每条任务标注身份类型、角色与职责（必填）以及已判定的公司类型（可选）",
+		"在 tasks/TASKS.md 中为每条任务记录已判定的身份类型、角色与职责（可选）以及已判定的公司类型（可选）",
 	)
 	assertPromptExcludes(t, prompt,
 		"Role determination",
 		"duties and responsibilities",
 		"role-based execution",
+		// 身份与行业均改为按需判定：旧强制语义不得回归。
+		"必须先判定自己在该任务中的身份类型与角色",
+		"身份类型与职责是任务的必判定项",
+		"执行或整理任务前必须判定任务对应的身份类型与职责",
+		"在 tasks/TASKS.md 中为每条任务标注身份类型、角色与职责（必填）",
+		"每次任务判定或阶段汇报先给出身份类型与角色",
 	)
 
 	assertKernelPolicyPart(t, cb.BuildSystemPromptParts(), "kernel.role_policy", PromptSourceRolePolicy)
@@ -356,7 +367,7 @@ func TestRolePolicyPromptConditionalLines(t *testing.T) {
 				t.Fatalf("prompt contains role policy = %v, want %v:\n%s", got, tc.wantRole, prompt)
 			}
 			toolLine := "按角色职责选用对应技能和工具"
-			taskLine := "在 tasks/TASKS.md 中为每条任务标注身份类型、角色与职责（必填）以及已判定的公司类型（可选）"
+			taskLine := "在 tasks/TASKS.md 中为每条任务记录已判定的身份类型、角色与职责（可选）以及已判定的公司类型（可选）"
 			if got := strings.Contains(prompt, toolLine); got != tc.wantToolLine {
 				t.Fatalf("prompt contains role tool line = %v, want %v:\n%s", got, tc.wantToolLine, prompt)
 			}
