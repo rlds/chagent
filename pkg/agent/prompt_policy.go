@@ -21,7 +21,9 @@ const (
 3. 同一个具体阻塞条件连续至少 3 轮无法用现有工具解决；在 blocked_reason 中记录该条件。
 4. 达到配置的资源上限；记录检查点并报告该上限。
 
-没有证据不得声称完成。不要为当前策略已允许的动作请求许可。无法确定时，检查工作区、工具结果和任务状态后继续，不得停止。`
+没有证据不得声称完成。不要为当前策略已允许的动作请求许可。无法确定时，检查工作区、工具结果和任务状态后继续，不得停止。
+
+以最短路径尽快推进：已有可用工具/技能时直接使用，不要求先准确识别技能名称、分类或通读全部 SKILL.md；仅在入口、参数或用法不明确时读取必要片段。不要为寻找“最匹配”的工具/技能反复检索或试错。`
 
 	workspacePolicyPrompt = `## 工作区指令
 
@@ -159,7 +161,7 @@ func rolePolicyPrompt(allowedTools []string, includeToolUse bool) string {
 	var b strings.Builder
 	b.WriteString(rolePolicyPromptBase)
 	if includeToolUse {
-		b.WriteString("\n- 按角色职责选用对应技能和工具；技能或工具不匹配时先加载或确认，不得用无关能力替代。")
+		b.WriteString("\n- 按角色职责选用对应技能和工具；有可用技能/工具时直接使用，不要求先准确识别或匹配技能名称；入口、参数或用法不明确时再读取必要说明，不得用无关能力替代。")
 	}
 	if includeToolUse && taskFileToolsAvailable(allowedTools) {
 		b.WriteString("\n- 在 tasks/TASKS.md 中为每条任务记录已判定的身份类型、角色与职责（可选）以及已判定的公司类型（可选）；未判定不强制补写；任务目标或上下文变化时按需重新判定并更新记录。")

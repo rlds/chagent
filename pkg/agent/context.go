@@ -409,7 +409,7 @@ func (cb *ContextBuilder) buildSystemPromptParts(opts systemPromptBuildOptions) 
 			"read_file",
 		)
 		if opts.IncludeToolUseRule && readFileAllowed {
-			skillIntro += "使用前用 read_file 读取对应 SKILL.md；未读取不得执行技能指令。"
+			skillIntro += "有可用技能/工具时直接使用，不要求先准确识别或匹配技能；仅在入口、参数或用法不明确时用 read_file 读取对应 SKILL.md 的必要片段。"
 		}
 		add(PromptPart{
 			ID:     "capability.skill_catalog",
