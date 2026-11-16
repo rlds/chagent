@@ -154,7 +154,9 @@ func runGateway(
 		listenPort = parsed
 	}
 
-	pidfiledir := cfg.Agents.Defaults.Workspace
+	// PID 文件必须写到网关实际使用的工作区（与 client 发现路径一致）：
+	// cfg.WorkspacePath() 负责展开 ~，空值时保持进程工作目录语义。
+	pidfiledir := cfg.WorkspacePath()
 	// 强制单实例：写入带有生成令牌的 PID 文件。
 	pidData, err := pid.WritePidFile(pidfiledir, bindPlan.ProbeHost, listenPort)
 	if err != nil {
