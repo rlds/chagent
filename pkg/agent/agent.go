@@ -19,6 +19,7 @@ import (
 	"github.com/rlds/chagent/pkg/commands"
 	"github.com/rlds/chagent/pkg/config"
 	"github.com/rlds/chagent/pkg/constants"
+	"github.com/rlds/chagent/pkg/cron"
 	runtimeevents "github.com/rlds/chagent/pkg/events"
 	"github.com/rlds/chagent/pkg/logger"
 	"github.com/rlds/chagent/pkg/media"
@@ -51,6 +52,7 @@ type AgentLoop struct {
 	channelManager interfaces.ChannelManager
 	mediaStore     media.MediaStore
 	cmdRegistry    *commands.Registry
+	cronService    *cron.CronService
 	mcp            mcpRuntime
 	hookRuntime    hookRuntime
 	steering       *steeringQueue
@@ -86,6 +88,22 @@ type AgentLoop struct {
 	reloadFunc func() error
 
 	providerFactory func(*config.ModelConfig) (providers.LLMProvider, string, error)
+}
+
+// SetCronService 注入定时任务服务，供 /cron 命令管理定时任务。
+func (al *AgentLoop) SetCronService(service *cron.CronService) {
+	if al == nil {
+		return
+	}
+	al.cronService = service
+}
+
+// GetCronService 返回当前定时任务服务。
+func (al *AgentLoop) GetCronService() *cron.CronService {
+	if al == nil {
+		return nil
+	}
+	return al.cronService
 }
 
 // processOptions 配置消息的处理方式

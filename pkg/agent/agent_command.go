@@ -136,6 +136,7 @@ func (al *AgentLoop) buildCommandsRuntime(
 	cfg := al.GetConfig()
 	rt := &commands.Runtime{
 		Config:          cfg,
+		Cron:            al.GetCronService(),
 		ListAgentIDs:    registry.ListAgentIDs,
 		ListDefinitions: al.cmdRegistry.Definitions,
 		ListMCPServers: func(ctx context.Context) []commands.MCPServerInfo {

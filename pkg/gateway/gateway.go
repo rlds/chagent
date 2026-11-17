@@ -772,6 +772,7 @@ func setupCronTool(
 	cronStorePath := filepath.Join(workspace, "cron", "jobs.json")
 
 	cronService := cron.NewCronService(cronStorePath, nil)
+	agentLoop.SetCronService(cronService)
 
 	var cronTool *tools.CronTool
 	if cfg.Tools.IsToolEnabled("cron") {

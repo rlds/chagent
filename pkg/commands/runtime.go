@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/rlds/chagent/pkg/config"
+	"github.com/rlds/chagent/pkg/cron"
 )
 
 type MCPServerInfo struct {
@@ -83,6 +84,7 @@ type StopResult struct {
 // （例如 GetModelInfo）共存。
 type Runtime struct {
 	Config             *config.Config
+	Cron               *cron.CronService
 	GetModelInfo       func() (name, provider string)
 	AskSideQuestion    func(ctx context.Context, question string) (string, error)
 	ListAgentIDs       func() []string
