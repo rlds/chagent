@@ -998,6 +998,11 @@ func (c *PicoChannel) handleMediaDownload(w http.ResponseWriter, r *http.Request
 	http.ServeContent(w, r, filename, info.ModTime(), file)
 }
 
+// MonitorSessionID 是客户端注册的只读监控会话。
+// 客户端的固定 monitor 连接使用该 session_id 订阅全部会话输出，
+// 用于把 cron/autonomy 等没有用户 pico 连接的后台执行过程上报到消息中心。
+const MonitorSessionID = "__pico_monitor__"
+
 // broadcastToSession 向所有会话匹配的连接发送消息。
 func (c *PicoChannel) broadcastToSession(chatID string, msg PicoMessage) error {
 	// chatID 格式："pico:<sessionID>"
@@ -1025,8 +1030,16 @@ func (c *PicoChannel) broadcastToSession(chatID string, msg PicoMessage) error {
 		}
 	}
 
+	targets := c.sessionConnectionsSnapshot(sessionID)
+	if sessionID != MonitorSessionID && len(targets) == 0 {
+		// 后台 cron/autonomy 会话通常没有客户端主动建立的 pico 连接。
+		// 此时改投固定 monitor 连接，否则执行过程只进模型日志、不进入消息中心。
+		// 有正常会话连接时不复制给 monitor，避免同一消息被两个消费者重复上报。
+		targets = c.sessionConnectionsSnapshot(MonitorSessionID)
+	}
+
 	var sent bool
-	for _, pc := range c.sessionConnectionsSnapshot(sessionID) {
+	for _, pc := range targets {
 		if err := pc.writeJSON(msg); err != nil {
 			logger.DebugCF("pico", "Write to connection failed", map[string]any{
 				"conn_id": pc.id,

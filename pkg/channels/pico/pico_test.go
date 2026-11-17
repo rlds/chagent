@@ -1039,3 +1039,35 @@ func newTestPicoWebSocket(t *testing.T) (*websocket.Conn, <-chan PicoMessage, fu
 	defer resp.Body.Close()
 	return clientConn, received, cleanup
 }
+
+func TestBroadcastToSessionIncludesMonitor(t *testing.T) {
+	ch := newTestPicoChannel(t)
+	ch.SetRunning(true)
+
+	monitorConn, monitorReceived, cleanupMonitor := newTestPicoWebSocket(t)
+	defer cleanupMonitor()
+	ch.addConnForTest(&picoConn{id: "conn-monitor", sessionID: MonitorSessionID, conn: monitorConn})
+
+	// 后台会话没有自己的连接，只有 monitor 连接时也必须能收到。
+	if err := ch.broadcastToSession("pico:agent_cron-session", PicoMessage{
+		Type: TypeMessageCreate,
+		Payload: map[string]any{
+			"message_id": "monitor-msg-1",
+			"content":    "后台执行过程",
+		},
+	}); err != nil {
+		t.Fatalf("broadcastToSession() error = %v", err)
+	}
+
+	select {
+	case msg := <-monitorReceived:
+		if msg.SessionID != "agent_cron-session" {
+			t.Fatalf("SessionID = %q, want agent_cron-session", msg.SessionID)
+		}
+		if msg.Payload["content"] != "后台执行过程" {
+			t.Fatalf("content = %v", msg.Payload["content"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for monitor connection message")
+	}
+}
