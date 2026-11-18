@@ -144,9 +144,8 @@ func rolePolicyPrompt(allowedTools []string, includeToolUse bool) string {
 	if includeToolUse {
 		b.WriteString("\n- 按角色职责选用对应技能和工具；有可用技能/工具时直接使用，不要求先准确识别或匹配技能名称；入口、参数或用法不明确时再读取必要说明，不得用无关能力替代。")
 	}
-	if hasTeamModeTools(allowedTools) {
-		b.WriteString("\n\n" + teamModePolicyPrompt)
-	}
+	// 团队模式说明始终出现在默认系统提示中；无团队 MCP 时按条件语义自动忽略。
+	b.WriteString("\n\n" + teamModePolicyPrompt)
 	return b.String()
 }
 
@@ -160,16 +159,6 @@ const teamModePolicyPrompt = `## 团队模式
 - 任务级消息必须带 task_id；运行级消息才使用根任务 ID；不要刷聊天或发送确认/已读噪声。
 - 直接执行；多步跟踪可用 todo_write。
 - 只有用户明确停止或根任务完成才终止运行；失败/系统重启由平台恢复，Agent 不应自行把根任务标记失败。`
-
-func hasTeamModeTools(allowedTools []string) bool {
-	for _, name := range allowedTools {
-		lower := strings.ToLower(name)
-		if strings.Contains(lower, "team_leader_") || strings.Contains(lower, "team_member_") {
-			return true
-		}
-	}
-	return false
-}
 
 // taskFileToolsAvailable 报告当前 allowlist 是否具备读取并写入任务文件的能力。
 // 需要 read_file 以便更新前先读取，write_file 或 edit_file 之一用于落盘。
