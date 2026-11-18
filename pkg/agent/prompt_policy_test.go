@@ -586,7 +586,5 @@ func TestTeamModePolicyInjectedForTeamTools(t *testing.T) {
 	assertPromptContains(t, prompt,
 		"## 团队模式",
 		"先调用 team_*_info/task_list",
-		"不要求先写 tasks/TASKS.md 再执行",
-		"不检查/恢复历史任务板",
 	)
 }

@@ -158,7 +158,7 @@ const teamModePolicyPrompt = `## 团队模式
 - Leader：把目标拆成可独立验收的子任务，创建后立即通知 assignee；遵守团队预算、成员访问范围和 max_new_agents 限额；已有任务优先复用，不重复创建；不伪造成员交付。
 - Member：只处理分配给自己的任务，领取后执行；结果通过 team_member_task_complete 回写，不把任务正文/结果只发在聊天里；不跨项目、不越权修改他人任务。
 - 任务级消息必须带 task_id；运行级消息才使用根任务 ID；不要刷聊天或发送确认/已读噪声。
-- 不要求先写 tasks/TASKS.md 再执行，也不检查/恢复历史任务板作为启动前置条件；直接执行，多步跟踪可用 todo_write。
+- 直接执行；多步跟踪可用 todo_write。
 - 只有用户明确停止或根任务完成才终止运行；失败/系统重启由平台恢复，Agent 不应自行把根任务标记失败。`
 
 func hasTeamModeTools(allowedTools []string) bool {
