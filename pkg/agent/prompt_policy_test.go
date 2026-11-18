@@ -143,24 +143,22 @@ func TestTaskAndMemoryPolicyPromptEnabledByDefault(t *testing.T) {
 	prompt := cb.BuildSystemPrompt()
 
 	assertPromptContains(t, prompt,
+		p22MemoryHeader,
+		p22MemoryCore,
+		"清理记忆后，在最终任务完成输出中说明清理了什么",
+	)
+	// 新策略不再要求先记录任务或检查历史任务。
+	assertPromptExcludes(t, prompt,
 		p21TaskHeader,
 		p21TaskFile,
 		p21TaskLog,
 		p21StaleRule,
-		"判定结果必须在新的输出开头明确列出",
-		"在最终输出中说明本次在用户请求之外额外完成的内容",
-		p22MemoryHeader,
-		p22MemoryCore,
-		"清理记忆后，在最终任务完成输出中说明清理了什么",
 		"**任务判定**",
-	)
-	assertPromptExcludes(t, prompt,
 		"Task determination",
 		"recorded in tasks/TASKS.md",
 		"Memory hygiene",
 	)
 
-	assertKernelPolicyPart(t, cb.BuildSystemPromptParts(), "kernel.task_policy", PromptSourceTaskPolicy)
 	assertKernelPolicyPart(t, cb.BuildSystemPromptParts(), "kernel.memory_policy", PromptSourceMemoryPolicy)
 }
 
@@ -221,20 +219,12 @@ func TestTaskAndMemoryPolicyPromptRequiresFileTools(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			prompt := renderPromptPartsLegacy(cb.buildSystemPromptParts(tc.opts))
-			for _, snippet := range []string{p21TaskHeader, p21TaskFile, p22MemoryHeader, "**任务判定**"} {
-				got := strings.Contains(prompt, snippet)
-				if got != tc.want {
-					t.Fatalf("prompt contains %q = %v, want %v:\n%s", snippet, got, tc.want, prompt)
-				}
+			// 任务记录策略已移除；仅记忆策略按文件工具门控。
+			if got := strings.Contains(prompt, p21TaskHeader); got {
+				t.Fatalf("task recording policy must be removed:\n%s", prompt)
 			}
-			// todo_write / task_update 的协同句只在对应工具可用时出现。
-			todoLine := "多步任务用 todo_write 维护待办"
-			taskUpdateLine := "会话任务状态用 task_update 管理"
-			if got := strings.Contains(prompt, todoLine); got != tc.mention {
-				t.Fatalf("prompt contains todo_write coordination line = %v, want %v", got, tc.mention)
-			}
-			if got := strings.Contains(prompt, taskUpdateLine); got != tc.mention {
-				t.Fatalf("prompt contains task_update coordination line = %v, want %v", got, tc.mention)
+			if got := strings.Contains(prompt, p22MemoryHeader); got != tc.want {
+				t.Fatalf("prompt contains memory policy = %v, want %v:\n%s", got, tc.want, prompt)
 			}
 		})
 	}
@@ -298,7 +288,6 @@ func TestRolePolicyPromptEnabledByDefault(t *testing.T) {
 		"未判定则核对任务验收标准与证据是否一致",
 		"**角色判定**",
 		"按角色职责选用对应技能和工具",
-		"在 tasks/TASKS.md 中为每条任务记录已判定的身份类型、角色与职责（可选）以及已判定的公司类型（可选）",
 	)
 	assertPromptExcludes(t, prompt,
 		"Role determination",
@@ -325,14 +314,12 @@ func TestRolePolicyPromptConditionalLines(t *testing.T) {
 		opts         systemPromptBuildOptions
 		wantRole     bool
 		wantToolLine bool
-		wantTaskLine bool
 	}{
 		{
 			name:         "all tools",
 			opts:         systemPromptBuildOptions{IncludeToolUseRule: true},
 			wantRole:     true,
 			wantToolLine: true,
-			wantTaskLine: true,
 		},
 		{
 			name: "read and write",
@@ -342,7 +329,6 @@ func TestRolePolicyPromptConditionalLines(t *testing.T) {
 			},
 			wantRole:     true,
 			wantToolLine: true,
-			wantTaskLine: true,
 		},
 		{
 			name: "no file tools",
@@ -367,12 +353,8 @@ func TestRolePolicyPromptConditionalLines(t *testing.T) {
 				t.Fatalf("prompt contains role policy = %v, want %v:\n%s", got, tc.wantRole, prompt)
 			}
 			toolLine := "按角色职责选用对应技能和工具"
-			taskLine := "在 tasks/TASKS.md 中为每条任务记录已判定的身份类型、角色与职责（可选）以及已判定的公司类型（可选）"
 			if got := strings.Contains(prompt, toolLine); got != tc.wantToolLine {
 				t.Fatalf("prompt contains role tool line = %v, want %v:\n%s", got, tc.wantToolLine, prompt)
-			}
-			if got := strings.Contains(prompt, taskLine); got != tc.wantTaskLine {
-				t.Fatalf("prompt contains role task line = %v, want %v:\n%s", got, tc.wantTaskLine, prompt)
 			}
 		})
 	}
@@ -593,4 +575,18 @@ func TestNewAgentInstanceWiresPolicyPrompts(t *testing.T) {
 	if strings.Contains(autonomyPrompt, p02WorkspaceHeader) {
 		t.Fatalf("autonomy-only instance prompt unexpectedly contains workspace policy:\n%s", autonomyPrompt)
 	}
+}
+
+func TestTeamModePolicyInjectedForTeamTools(t *testing.T) {
+	cb := newPolicyTestBuilder(t)
+	prompt := renderPromptPartsLegacy(cb.buildSystemPromptParts(systemPromptBuildOptions{
+		IncludeToolUseRule: true,
+		AllowedTools:       []string{"read_file", "team_leader_info", "team_member_task_get"},
+	}))
+	assertPromptContains(t, prompt,
+		"## 团队模式",
+		"先调用 team_*_info/task_list",
+		"不要求先写 tasks/TASKS.md 再执行",
+		"不检查/恢复历史任务板",
+	)
 }

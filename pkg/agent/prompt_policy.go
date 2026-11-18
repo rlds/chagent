@@ -54,25 +54,16 @@ const (
 - 完成前用可验证证据核对目标（文件内容、命令输出、测试结果）；没有工具结果不得声称已完成。
 - 无法继续时，记录明确原因与已尝试的证据；不要把正常难度误报为阻塞。`
 
-	// taskPolicyPromptBase 是 P-21 任务判定与记录策略的公共部分。
-	// 该策略默认注入，但依赖文件工具读写任务文件；缺少文件工具时整段省略。
-	taskPolicyPromptBase = `## 任务判定与记录
-
-- 每轮先判定用户输入：需要产生可验证结果（修改文件、执行命令、检索并交付、部署、修复等）的是任务；纯问答、解释、闲聊、征求意见不建任务。
-- 需要执行的任务记录在 tasks/TASKS.md（不存在时创建）。每条任务包含：编号（TASK-YYYYMMDD-NNN）、创建时间（RFC3339，带时区）、来源、身份类型与角色/职责（如已判定则记录，可选）、公司类型（如已判定则记录，可选）、目标、验收标准、状态（pending / in_progress / blocked / completed / abandoned）和证据。
-- 执行期间用户新增输入时，先判定它是当前任务的补充/修正，还是独立的新需求：补充直接合并进该任务的目标与验收标准；新需求登记为新任务，原任务状态不变。
-- 任务完成时在 tasks/TASKS.md 标记 completed，写入完成时间与证据；全部任务完成后，把已完成条目移到 tasks/TASK_LOG.md（保留编号、已判定的身份类型与角色/职责、公司类型、创建时间、完成时间、目标、验收标准、证据与结果；未判定字段不强制补写），tasks/TASKS.md 只保留未完成项。
-- 开始新一轮或接管会话时检查 tasks/TASKS.md 中的遗留任务，按创建时间与当前上下文判定：创建时间在 7 天内，或任务仍与当前请求相关、依赖未变化 → 继续执行；创建超过 7 天且无进展证据、前置条件或依赖已变化 → 判定不执行，标记 abandoned 并写明原因后移入 tasks/TASK_LOG.md；无法判断时按继续处理，不得静默丢弃。
-- 判定结果必须在新的输出开头明确列出：任务编号、目标、判定（继续/不执行）、理由。判定继续的任务按原验收标准推进，并在最终输出中说明本次在用户请求之外额外完成的内容。
-- 任务文件内容必须与实际执行一致；没有写入或工具结果证据，不得声称已记录或已完成。`
-
+	// 任务执行策略：不再要求先写 tasks/TASKS.md 或检查历史任务板。
+	// 直接按用户目标执行；多步跟踪交给 todo_write/平台任务状态。
+	taskPolicyPromptBase = ""
 	// memoryHygienePrompt 是 P-22 记忆维护策略。与任务策略相同，
 	// 仅在文件工具可写时注入，避免要求模型写入无法访问的文件。
 	memoryHygienePrompt = `## 记忆维护
 
 - memory/MEMORY.md 只保留跨会话仍然成立的核心内容：用户身份与长期偏好、稳定约定、关键决策与结论。
 - 历史过程、一次性事件、临时状态、已完成事项的叙述，以及已经恢复正常的异常，不写入长期记忆；发现已有此类内容时主动合并或删除。
-- 任务进度、待办和遗留任务判定不写入长期记忆；它们只记录在 tasks/ 下。
+- 任务进度与待办不写入长期记忆；需要长期保留的结论才写入。
 - 每日笔记 memory/YYYYMM/YYYYMMDD.md 属于过程记录；其中确有长期价值的结论提炼进 MEMORY.md，其余不保留。
 - 清理记忆后，在最终任务完成输出中说明清理了什么；没有清理则不说明，不得虚构清理。`
 
@@ -132,19 +123,9 @@ func pathToolPolicyPrompt(allowedTools []string, includeToolUse bool) string {
 // 文件工具不可用（或本次请求禁用了工具规则）时返回空字符串，
 // 避免要求模型写入它无法访问的任务文件。
 func taskPolicyPrompt(allowedTools []string, includeToolUse bool) string {
-	if !includeToolUse || !taskFileToolsAvailable(allowedTools) {
-		return ""
-	}
-
-	var b strings.Builder
-	b.WriteString(taskPolicyPromptBase)
-	if toolAllowed(allowedTools, "todo_write") {
-		b.WriteString("\n- 多步任务用 todo_write 维护待办，并与 tasks/TASKS.md 保持一致。")
-	}
-	if toolAllowed(allowedTools, "task_update") {
-		b.WriteString("\n- 会话任务状态用 task_update 管理，任务文件中的状态必须与之一致。")
-	}
-	return b.String()
+	_ = allowedTools
+	_ = includeToolUse
+	return ""
 }
 
 // memoryPolicyPrompt 返回 P-22 记忆维护策略；与任务策略共用文件工具门控。
@@ -163,10 +144,31 @@ func rolePolicyPrompt(allowedTools []string, includeToolUse bool) string {
 	if includeToolUse {
 		b.WriteString("\n- 按角色职责选用对应技能和工具；有可用技能/工具时直接使用，不要求先准确识别或匹配技能名称；入口、参数或用法不明确时再读取必要说明，不得用无关能力替代。")
 	}
-	if includeToolUse && taskFileToolsAvailable(allowedTools) {
-		b.WriteString("\n- 在 tasks/TASKS.md 中为每条任务记录已判定的身份类型、角色与职责（可选）以及已判定的公司类型（可选）；未判定不强制补写；任务目标或上下文变化时按需重新判定并更新记录。")
+	if hasTeamModeTools(allowedTools) {
+		b.WriteString("\n\n" + teamModePolicyPrompt)
 	}
 	return b.String()
+}
+
+// teamModePolicyPrompt 是团队模式（Leader/Member MCP）的执行约束。
+// 只在工具列表出现团队 MCP 工具时注入，避免普通 Agent 承担无关规则。
+const teamModePolicyPrompt = `## 团队模式
+
+- 检测到 chess-team-leader / chess-team-member MCP 时，优先使用团队工具协作：先调用 team_*_info/task_list 获取项目、运行、角色和现有任务，再行动。
+- Leader：把目标拆成可独立验收的子任务，创建后立即通知 assignee；遵守团队预算、成员访问范围和 max_new_agents 限额；已有任务优先复用，不重复创建；不伪造成员交付。
+- Member：只处理分配给自己的任务，领取后执行；结果通过 team_member_task_complete 回写，不把任务正文/结果只发在聊天里；不跨项目、不越权修改他人任务。
+- 任务级消息必须带 task_id；运行级消息才使用根任务 ID；不要刷聊天或发送确认/已读噪声。
+- 不要求先写 tasks/TASKS.md 再执行，也不检查/恢复历史任务板作为启动前置条件；直接执行，多步跟踪可用 todo_write。
+- 只有用户明确停止或根任务完成才终止运行；失败/系统重启由平台恢复，Agent 不应自行把根任务标记失败。`
+
+func hasTeamModeTools(allowedTools []string) bool {
+	for _, name := range allowedTools {
+		lower := strings.ToLower(name)
+		if strings.Contains(lower, "team_leader_") || strings.Contains(lower, "team_member_") {
+			return true
+		}
+	}
+	return false
 }
 
 // taskFileToolsAvailable 报告当前 allowlist 是否具备读取并写入任务文件的能力。

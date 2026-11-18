@@ -208,9 +208,6 @@ func (cb *ContextBuilder) getIdentity(includeToolUseRule bool, allowedTools []st
 		"**精确执行** - 绝对准确地理解用户意图与约束，严格按用户提交的任务与验收条件完成；不得擅自扩大或缩减任务范围。",
 	)
 	rules = append(rules, "**角色判定** - 身份类型/角色与任务所属行业/公司类型均为按需判定，非必填；仅当这些信息能直接帮助任务执行时才判定，无法判定或对执行无直接帮助时不判定，不得因此阻塞任务或虚构角色/行业。判定后补充该身份对应的职责、权限边界、专业标准与验收责任，对执行过程和结果进行约束；角色随任务改变，未判定时按任务目标、验收标准与通用工程规范执行。")
-	if fileToolsAvailable {
-		rules = append(rules, "**任务判定** - 先判定用户输入是任务还是问答；需要执行的任务记录到 tasks/TASKS.md，完成一项就更新一项。")
-	}
 	rules = append(
 		rules,
 		"**上下文摘要** - 摘要为近似内容，不保证完整或最新；用户明确指令优先。",
@@ -336,21 +333,6 @@ func (cb *ContextBuilder) buildSystemPromptParts(opts systemPromptBuildOptions) 
 		Cache:   PromptCacheEphemeral,
 	})
 
-	// 任务判定/记录（P-21）与记忆维护（P-22）：默认行为契约。
-	// 依赖文件工具读写 tasks/TASKS.md、tasks/TASK_LOG.md 与 memory/MEMORY.md；
-	// 缺少文件工具或禁用工具规则时自动省略，避免要求模型写入无法访问的文件。
-	if content := taskPolicyPrompt(opts.AllowedTools, opts.IncludeToolUseRule); content != "" {
-		add(PromptPart{
-			ID:      "kernel.task_policy",
-			Layer:   PromptLayerKernel,
-			Slot:    PromptSlotPolicy,
-			Source:  PromptSource{ID: PromptSourceTaskPolicy, Name: string(PromptSourceTaskPolicy)},
-			Title:   "task policy",
-			Content: content,
-			Stable:  true,
-			Cache:   PromptCacheEphemeral,
-		})
-	}
 	if content := memoryPolicyPrompt(opts.AllowedTools, opts.IncludeToolUseRule); content != "" {
 		add(PromptPart{
 			ID:      "kernel.memory_policy",

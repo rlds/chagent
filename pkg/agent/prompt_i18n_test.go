@@ -78,7 +78,6 @@ func TestModelVisiblePromptsAreChinese(t *testing.T) {
 		"**上下文摘要**",
 		"**语言与表达**",
 		"## 任务与表达",
-		"## 任务判定与记录",
 		"## 角色判定与履职",
 		"## 记忆维护",
 		"**记忆**",
