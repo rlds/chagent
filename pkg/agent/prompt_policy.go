@@ -158,7 +158,8 @@ const teamModePolicyPrompt = `## 团队模式
 - Member：只处理分配给自己的任务，领取后执行；结果通过 team_member_task_complete 回写，不把任务正文/结果只发在聊天里；不跨项目、不越权修改他人任务。
 - 任务级消息必须带 task_id；运行级消息才使用根任务 ID；不要刷聊天或发送确认/已读噪声。
 - 直接执行；多步跟踪可用 todo_write。
-- 只有用户明确停止或根任务完成才终止运行；失败/系统重启由平台恢复，Agent 不应自行把根任务标记失败。`
+- 只有用户明确停止或根任务完成才终止运行；失败/系统重启由平台恢复，Agent 不应自行把根任务标记失败。
+- 成员在线且任务 pending/running 时不得取消任务；取消只能针对明确不可恢复的 blocked/失败任务，且不得用取消来提前结束根任务。`
 
 // taskFileToolsAvailable 报告当前 allowlist 是否具备读取并写入任务文件的能力。
 // 需要 read_file 以便更新前先读取，write_file 或 edit_file 之一用于落盘。
