@@ -122,3 +122,25 @@ func TestCronCommand_ParseQuotedFields(t *testing.T) {
 		t.Fatalf("every_seconds = %q", fields["every_seconds"])
 	}
 }
+
+func TestCronCommand_Update(t *testing.T) {
+	ex, service := newCronCommandExecutor(t)
+	addReply := runCronCommand(t, ex, `/cron add name="旧标题" every_seconds=60 message="旧内容"`)
+	match := regexp.MustCompile(`ID：([^\s]+)`).FindStringSubmatch(addReply)
+	if len(match) != 2 {
+		t.Fatalf("cannot parse job id from %q", addReply)
+	}
+	id := match[1]
+
+	reply := runCronCommand(t, ex, `/cron update `+id+` name="新标题" cron_expr="0 9 * * *" message="新内容"`)
+	if !strings.Contains(reply, "定时任务已修改") {
+		t.Fatalf("update reply = %q", reply)
+	}
+	job, ok := service.GetJob(id)
+	if !ok {
+		t.Fatal("job not found after update")
+	}
+	if job.Name != "新标题" || job.Payload.Message != "新内容" || job.Schedule.Kind != "cron" || job.Schedule.Expr != "0 9 * * *" {
+		t.Fatalf("job not updated: %+v", job)
+	}
+}

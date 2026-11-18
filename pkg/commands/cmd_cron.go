@@ -24,6 +24,7 @@ func cronCommand() Definition {
 			{Name: "list", Description: "列出全部定时任务", Handler: cronListHandler()},
 			{Name: "get", Description: "查看定时任务详情", ArgsUsage: "<id>", Handler: cronGetHandler()},
 			{Name: "add", Description: "新增定时任务（agent 任务）", ArgsUsage: "name=<名称> every_seconds=<秒>|cron_expr=<表达式> message=<内容>", Handler: cronAddHandler()},
+			{Name: "update", Description: "修改定时任务标题、调度或内容", ArgsUsage: "<id> [name=<名称>] [every_seconds=<秒>|cron_expr=<表达式>] [message=<内容>]", Handler: cronUpdateHandler()},
 			{Name: "remove", Description: "删除定时任务", ArgsUsage: "<id>", Handler: cronRemoveHandler()},
 			{Name: "delete", Description: "删除定时任务（同 remove）", ArgsUsage: "<id>", Handler: cronRemoveHandler()},
 			{Name: "enable", Description: "开始/启用定时任务", ArgsUsage: "<id>", Handler: cronToggleHandler(true)},
@@ -120,6 +121,51 @@ func cronAddHandler() Handler {
 			"定时任务已创建。\nID：%s\n名称：%s\n调度：%s\n启用：是\n下次执行：%s",
 			job.ID, job.Name, formatCronSchedule(job.Schedule), formatCronMillis(job.State.NextRunAtMS),
 		))
+	}
+}
+
+func cronUpdateHandler() Handler {
+	return func(_ context.Context, req Request, rt *Runtime) error {
+		service := cronServiceOrReply(req, rt)
+		if service == nil {
+			return nil
+		}
+		id := nthToken(req.Text, 2)
+		if id == "" {
+			return req.Reply("用法：/cron update <id> [name=...] [every_seconds=...|cron_expr=...] [message=...]")
+		}
+		job, ok := service.GetJob(id)
+		if !ok {
+			return req.Reply(fmt.Sprintf("未找到定时任务：%s", id))
+		}
+		fields := parseCronFields(req.Text, 3)
+		if len(fields) == 0 {
+			return req.Reply("没有需要修改的字段。用法：/cron update <id> [name=...] [every_seconds=...|cron_expr=...] [message=...]")
+		}
+		if value, exists := fields["name"]; exists {
+			job.Name = strings.TrimSpace(value)
+		}
+		if value, exists := fields["message"]; exists {
+			job.Payload.Message = strings.TrimSpace(value)
+		}
+		hasSchedule := false
+		for _, key := range []string{"at_seconds", "at", "every_seconds", "every", "cron_expr", "cron"} {
+			if _, exists := fields[key]; exists {
+				hasSchedule = true
+				break
+			}
+		}
+		if hasSchedule {
+			schedule, err := cronScheduleFromFields(fields)
+			if err != nil {
+				return req.Reply("修改定时任务失败：" + err.Error())
+			}
+			job.Schedule = schedule
+		}
+		if err := service.UpdateJob(job); err != nil {
+			return req.Reply("修改定时任务失败：" + err.Error())
+		}
+		return req.Reply(fmt.Sprintf("定时任务已修改。\nID：%s\n名称：%s\n调度：%s", job.ID, cronDisplayName(*job), formatCronSchedule(job.Schedule)))
 	}
 }
 
