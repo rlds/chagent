@@ -29,7 +29,7 @@ vendor/
 config/config.json
 .security.yml
 onboard
-
+cp.sh
 
 # Test
 coverage.txt
