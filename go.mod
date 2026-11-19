@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/adhocore/gronx v1.20.0
-	github.com/caarlos0/env/v11 v11.4.1
+	github.com/caarlos0/env/v11 v11.4.2
 	github.com/creack/pty v1.1.24
 	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
 	github.com/google/uuid v1.6.0
