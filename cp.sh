@@ -8,7 +8,7 @@ set -euo pipefail
 
 destinations=(
   "/Users/wudaorui/code/chess/client/bin"
-  "/Users/wudaorui/code/chess/claw"
+#  "/Users/wudaorui/code/chess/claw"
   "/Users/wudaorui/code/chess/build/bin"
 )
 
