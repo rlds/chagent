@@ -112,3 +112,46 @@ func TestLoadSessions_NormalizesMissingCreatedAt(t *testing.T) {
 		t.Fatalf("history[0].CreatedAt = %v, want non-zero timestamp", history[0].CreatedAt)
 	}
 }
+
+func TestNewSessionManager_ReplacesRegularFileAtStoragePath(t *testing.T) {
+	base := t.TempDir()
+	storage := filepath.Join(base, "sessions")
+	if err := os.WriteFile(storage, []byte("legacy placeholder"), 0o600); err != nil {
+		t.Fatalf("write placeholder: %v", err)
+	}
+
+	sm := NewSessionManager(storage)
+
+	info, err := os.Stat(storage)
+	if err != nil || !info.IsDir() {
+		t.Fatalf("storage path is not a directory: info=%v err=%v", info, err)
+	}
+	matches, _ := filepath.Glob(storage + ".corrupt-*")
+	if len(matches) != 1 {
+		t.Fatalf("expected one corrupt backup, got %v", matches)
+	}
+
+	sm.GetOrCreate("agent:test")
+	if err := sm.Save("agent:test"); err != nil {
+		t.Fatalf("Save() after replacing storage = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(storage, "agent_test.json")); err != nil {
+		t.Fatalf("session json missing: %v", err)
+	}
+}
+
+func TestSessionManager_SaveRecreatesMissingStorageDir(t *testing.T) {
+	storage := filepath.Join(t.TempDir(), "sessions")
+	sm := NewSessionManager(storage)
+	sm.GetOrCreate("agent:test")
+
+	if err := os.RemoveAll(storage); err != nil {
+		t.Fatalf("remove storage: %v", err)
+	}
+	if err := sm.Save("agent:test"); err != nil {
+		t.Fatalf("Save() should recreate storage dir: %v", err)
+	}
+	if info, err := os.Stat(storage); err != nil || !info.IsDir() {
+		t.Fatalf("storage not recreated: info=%v err=%v", info, err)
+	}
+}

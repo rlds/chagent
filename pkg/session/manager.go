@@ -2,12 +2,14 @@ package session
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/rlds/chagent/pkg/logger"
 	"github.com/rlds/chagent/pkg/providers"
 	"github.com/rlds/chagent/pkg/providers/messageutil"
 	"github.com/rlds/chagent/pkg/taskstate"
@@ -35,11 +37,36 @@ func NewSessionManager(storage string) *SessionManager {
 	}
 
 	if storage != "" {
-		os.MkdirAll(storage, 0o700)
-		sm.loadSessions()
+		if err := ensureSessionStorageDir(storage); err != nil {
+			logger.Warnf("初始化会话存储目录失败: path=%s, err=%v", storage, err)
+		} else if err := sm.loadSessions(); err != nil {
+			logger.Warnf("加载历史会话失败: path=%s, err=%v", storage, err)
+		}
 	}
 
 	return sm
+}
+
+// ensureSessionStorageDir 确保会话存储路径是目录。
+//
+// 历史工作区里曾出现过名为 sessions 的普通文件（0 字节），导致
+// os.CreateTemp(sessions, "session-*.tmp") 报 "not a directory"，
+// 整个任务执行失败。这里把冲突文件改名保留现场，再创建目录。
+func ensureSessionStorageDir(storage string) error {
+	info, err := os.Stat(storage)
+	if err == nil {
+		if info.IsDir() {
+			return nil
+		}
+		backup := fmt.Sprintf("%s.corrupt-%d", storage, time.Now().Unix())
+		if renameErr := os.Rename(storage, backup); renameErr != nil {
+			return fmt.Errorf("会话路径 %s 不是目录且无法备份: %w", storage, renameErr)
+		}
+		logger.Warnf("会话路径不是目录，已备份并重建: path=%s, backup=%s", storage, backup)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return os.MkdirAll(storage, 0o700)
 }
 
 func (sm *SessionManager) GetOrCreate(key string) *Session {
@@ -204,6 +231,10 @@ func (sm *SessionManager) Save(key string) error {
 	// 已将 '/' 和 '\' 替换为 '_'，因此不会创建子目录。
 	if filename == "." || !filepath.IsLocal(filename) {
 		return os.ErrInvalid
+	}
+
+	if err := ensureSessionStorageDir(sm.storage); err != nil {
+		return err
 	}
 
 	// 在读锁下做快照，解锁后再执行较慢的文件 I/O。
