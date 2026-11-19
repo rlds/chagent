@@ -75,6 +75,8 @@ go test -run TestName -v ./pkg/session/      # 运行单个测试
 go test -bench=. -benchmem -run='^$' ./...  # 运行基准测试
 ```
 
+> **真实测试强制规范**：默认禁止任何 mock/模拟测试与 mock 启动开关（`*_MOCK`、`USE_MOCK`、`--mock` 等）。链路/集成/发布验证必须使用真实 Server、Client、数据库、Agent 进程和 API；详情见 `../agent/docs/testing/REAL-TEST-POLICY.md`。
+
 ### 代码风格
 
 ```bash
