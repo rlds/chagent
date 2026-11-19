@@ -29,12 +29,13 @@ import (
 
 // picoConn 表示单个 WebSocket 连接。
 type picoConn struct {
-	id        string
-	conn      *websocket.Conn
-	sessionID string
-	writeMu   sync.Mutex
-	closed    atomic.Bool
-	cancel    context.CancelFunc // 取消每个连接相关的 goroutine（例如 pingLoop）
+	id           string
+	conn         *websocket.Conn
+	sessionID    string
+	writeMu      sync.Mutex
+	writeTimeout time.Duration
+	closed       atomic.Bool
+	cancel       context.CancelFunc // 取消每个连接相关的 goroutine（例如 pingLoop）
 }
 
 var allowedInlineImageMIMETypes = map[string]struct{}{
@@ -73,13 +74,27 @@ func outboundMessageFinalizesTrackedToolFeedback(msg bus.OutboundMessage) bool {
 }
 
 // writeJSON 在写锁保护下向连接发送 JSON 消息。
+//
+// 必须设置写超时：客户端监控连接死锁/暂停读取时，TCP 发送缓冲区写满后
+// WriteJSON 会永久阻塞，而广播是同步的，会连带卡住整个 pico worker 和
+// 共享 outbound dispatcher，导致所有 Agent 的输出都停止。
 func (pc *picoConn) writeJSON(v any) error {
 	if pc.closed.Load() {
 		return fmt.Errorf("connection closed")
 	}
 	pc.writeMu.Lock()
 	defer pc.writeMu.Unlock()
-	return pc.conn.WriteJSON(v)
+	if pc.conn == nil {
+		return fmt.Errorf("connection closed")
+	}
+	timeout := pc.writeTimeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	_ = pc.conn.SetWriteDeadline(time.Now().Add(timeout))
+	err := pc.conn.WriteJSON(v)
+	_ = pc.conn.SetWriteDeadline(time.Time{})
+	return err
 }
 
 // close 关闭连接。
@@ -88,7 +103,9 @@ func (pc *picoConn) close() {
 		if pc.cancel != nil {
 			pc.cancel()
 		}
-		pc.conn.Close()
+		if pc.conn != nil {
+			pc.conn.Close()
+		}
 	}
 }
 
@@ -172,10 +189,15 @@ func (c *PicoChannel) createAndAddConnection(conn *websocket.Conn, sessionID str
 		}
 	}
 
+	writeTimeout := 10 * time.Second
+	if c.config != nil && c.config.WriteTimeout > 0 {
+		writeTimeout = time.Duration(c.config.WriteTimeout) * time.Second
+	}
 	pc := &picoConn{
-		id:        connID,
-		conn:      conn,
-		sessionID: sessionID,
+		id:           connID,
+		conn:         conn,
+		sessionID:    sessionID,
+		writeTimeout: writeTimeout,
 	}
 
 	c.connections[pc.id] = pc
@@ -1009,50 +1031,103 @@ func (c *PicoChannel) broadcastToSession(chatID string, msg PicoMessage) error {
 	sessionID := strings.TrimPrefix(chatID, "pico:")
 	msg.SessionID = sessionID
 
+	msgID := ""
+	if msg.Type == TypeMessageCreate {
+		msgID, _ = msg.Payload["message_id"].(string)
+	}
 	// 同一 message.create 的 message_id 只广播一次。命令回复和流式收尾
 	// 都可能走 Send，重复调用会产生两条内容完全相同的 Agent 消息。
-	if msg.Type == TypeMessageCreate {
-		if id, _ := msg.Payload["message_id"].(string); id != "" {
-			key := sessionID + "|" + id
-			now := time.Now()
-			c.sentMu.Lock()
-			if seenAt, ok := c.sentMessageIDs[key]; ok && now.Sub(seenAt) < 10*time.Minute {
-				c.sentMu.Unlock()
-				return nil
-			}
-			for k, t := range c.sentMessageIDs {
-				if now.Sub(t) > 10*time.Minute {
-					delete(c.sentMessageIDs, k)
-				}
-			}
-			c.sentMessageIDs[key] = now
+	// 去重必须在成功投递之后登记：无消费者时不能把 id 标记为已发送，
+	// 否则 monitor 重连后的重试会被当成重复消息静默丢弃。
+	if msgID != "" {
+		key := sessionID + "|" + msgID
+		now := time.Now()
+		c.sentMu.Lock()
+		if seenAt, ok := c.sentMessageIDs[key]; ok && now.Sub(seenAt) < 10*time.Minute {
 			c.sentMu.Unlock()
+			return nil
 		}
+		c.sentMu.Unlock()
+	}
+
+	writeTargets := func(targets []*picoConn, out PicoMessage) bool {
+		var sent bool
+		for _, pc := range targets {
+			if err := pc.writeJSON(out); err != nil {
+				logger.DebugCF("pico", "Write to connection failed", map[string]any{
+					"conn_id": pc.id,
+					"error":   err.Error(),
+				})
+				// 写失败通常意味着半开/已断开；关闭后由连接清理逻辑移除，
+				// 下一次广播才能正确回退到 monitor。
+				pc.close()
+				continue
+			}
+			sent = true
+		}
+		return sent
+	}
+
+	recordSent := func() {
+		if msgID == "" {
+			return
+		}
+		key := sessionID + "|" + msgID
+		now := time.Now()
+		c.sentMu.Lock()
+		for k, t := range c.sentMessageIDs {
+			if now.Sub(t) > 10*time.Minute {
+				delete(c.sentMessageIDs, k)
+			}
+		}
+		c.sentMessageIDs[key] = now
+		c.sentMu.Unlock()
 	}
 
 	targets := c.sessionConnectionsSnapshot(sessionID)
+	usedMonitor := false
 	if sessionID != MonitorSessionID && len(targets) == 0 {
 		// 后台 cron/autonomy 会话通常没有客户端主动建立的 pico 连接。
 		// 此时改投固定 monitor 连接，否则执行过程只进模型日志、不进入消息中心。
 		// 有正常会话连接时不复制给 monitor，避免同一消息被两个消费者重复上报。
 		targets = c.sessionConnectionsSnapshot(MonitorSessionID)
+		usedMonitor = true
 	}
 
-	var sent bool
-	for _, pc := range targets {
-		if err := pc.writeJSON(msg); err != nil {
-			logger.DebugCF("pico", "Write to connection failed", map[string]any{
-				"conn_id": pc.id,
-				"error":   err.Error(),
+	sent := writeTargets(targets, msg)
+	if !sent && !usedMonitor && sessionID != MonitorSessionID {
+		// 会话连接存在但全部写入失败（对端已半开/关闭，服务端尚未回收）时，
+		// 仍要兜底到 monitor，避免整段执行过程被静默丢弃。
+		monitorTargets := c.sessionConnectionsSnapshot(MonitorSessionID)
+		if len(monitorTargets) > 0 {
+			logger.DebugCF("pico", "Session write failed, falling back to monitor", map[string]any{
+				"session_id": sessionID,
 			})
-		} else {
-			sent = true
+			fallback := msg
+			// monitor 没收到过该 message_id 的 create，直接投 update 会得到
+			// 一条无人可应用的帧。降级为 create，保证最终内容可见。
+			if msg.Type == TypeMessageUpdate {
+				payload := make(map[string]any, len(msg.Payload)+1)
+				for k, v := range msg.Payload {
+					payload[k] = v
+				}
+				payload["message_id"] = uuid.New().String()
+				fallback = PicoMessage{
+					Type:      TypeMessageCreate,
+					ID:        msg.ID,
+					SessionID: msg.SessionID,
+					Timestamp: msg.Timestamp,
+					Payload:   payload,
+				}
+			}
+			sent = writeTargets(monitorTargets, fallback)
 		}
 	}
 
 	if !sent {
 		return fmt.Errorf("no active connections for session %s: %w", sessionID, channels.ErrSendFailed)
 	}
+	recordSent()
 	return nil
 }
 

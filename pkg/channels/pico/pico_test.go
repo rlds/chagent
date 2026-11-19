@@ -1071,3 +1071,125 @@ func TestBroadcastToSessionIncludesMonitor(t *testing.T) {
 		t.Fatal("timed out waiting for monitor connection message")
 	}
 }
+
+func TestBroadcastToSessionFallsBackToMonitorWhenSessionWriteFails(t *testing.T) {
+	ch := newTestPicoChannel(t)
+	ch.SetRunning(true)
+
+	// 会话连接仍在注册表中但已半开/关闭：服务端还没完成回收。
+	deadSession := &picoConn{id: "dead-session", sessionID: "s-dead"}
+	deadSession.closed.Store(true)
+	ch.addConnForTest(deadSession)
+
+	monitorConn, monitorReceived, cleanupMonitor := newTestPicoWebSocket(t)
+	defer cleanupMonitor()
+	ch.addConnForTest(&picoConn{id: "conn-monitor", sessionID: MonitorSessionID, conn: monitorConn})
+
+	if err := ch.broadcastToSession("pico:s-dead", PicoMessage{
+		Type: TypeMessageCreate,
+		Payload: map[string]any{
+			"message_id": "fallback-msg-1",
+			"content":    "会话连接写入失败时的兜底消息",
+		},
+	}); err != nil {
+		t.Fatalf("broadcastToSession() error = %v, want monitor fallback success", err)
+	}
+
+	select {
+	case msg := <-monitorReceived:
+		if msg.SessionID != "s-dead" {
+			t.Fatalf("SessionID = %q, want s-dead", msg.SessionID)
+		}
+		if msg.Payload["content"] != "会话连接写入失败时的兜底消息" {
+			t.Fatalf("content = %v", msg.Payload["content"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for monitor fallback message")
+	}
+}
+
+func TestBroadcastToSessionRecordsMessageIDAfterDelivery(t *testing.T) {
+	ch := newTestPicoChannel(t)
+	ch.SetRunning(true)
+
+	msg := PicoMessage{
+		Type: TypeMessageCreate,
+		Payload: map[string]any{
+			"message_id": "retry-after-monitor-connect",
+			"content":    "monitor 重连后必须能收到",
+		},
+	}
+
+	// 没有消费者：不能把 message_id 记为已发送。
+	if err := ch.broadcastToSession("pico:s-retry", msg); err == nil {
+		t.Fatal("broadcast without consumers = nil error, want ErrSendFailed")
+	}
+
+	monitorConn, monitorReceived, cleanupMonitor := newTestPicoWebSocket(t)
+	defer cleanupMonitor()
+	ch.addConnForTest(&picoConn{id: "conn-monitor", sessionID: MonitorSessionID, conn: monitorConn})
+
+	// 同一 message_id 重试：应投递到 monitor，而不是被去重静默丢弃。
+	if err := ch.broadcastToSession("pico:s-retry", msg); err != nil {
+		t.Fatalf("retry broadcast error = %v, want nil", err)
+	}
+
+	select {
+	case got := <-monitorReceived:
+		if got.Payload["message_id"] != "retry-after-monitor-connect" {
+			t.Fatalf("message_id = %v", got.Payload["message_id"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for retried message")
+	}
+}
+
+func TestBroadcastToSessionUpdateFallbackCreatesVisibleMessage(t *testing.T) {
+	ch := newTestPicoChannel(t)
+	ch.SetRunning(true)
+
+	deadSession := &picoConn{id: "dead-session", sessionID: "s-update"}
+	deadSession.closed.Store(true)
+	ch.addConnForTest(deadSession)
+
+	// 会话连接写入失败且无 monitor：create 丢失，id 不能登记为已发送。
+	if err := ch.broadcastToSession("pico:s-update", PicoMessage{
+		Type: TypeMessageCreate,
+		Payload: map[string]any{
+			"message_id": "update-target-id",
+			"content":    "partial",
+		},
+	}); err == nil {
+		t.Fatal("broadcast without live consumer = nil error, want failure")
+	}
+
+	monitorConn, monitorReceived, cleanupMonitor := newTestPicoWebSocket(t)
+	defer cleanupMonitor()
+	ch.addConnForTest(&picoConn{id: "conn-monitor", sessionID: MonitorSessionID, conn: monitorConn})
+
+	// monitor 从未见过该 create，直接投 update 无人能应用；应降级为 create。
+	if err := ch.broadcastToSession("pico:s-update", PicoMessage{
+		Type: TypeMessageUpdate,
+		Payload: map[string]any{
+			"message_id": "update-target-id",
+			"content":    "final complete content",
+		},
+	}); err != nil {
+		t.Fatalf("update fallback broadcast error = %v", err)
+	}
+
+	select {
+	case got := <-monitorReceived:
+		if got.Type != TypeMessageCreate {
+			t.Fatalf("fallback type = %q, want %q", got.Type, TypeMessageCreate)
+		}
+		if got.Payload["content"] != "final complete content" {
+			t.Fatalf("content = %v", got.Payload["content"])
+		}
+		if got.Payload["message_id"] == "update-target-id" {
+			t.Fatal("fallback should mint a new message_id for unseen update")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for downgraded create")
+	}
+}
