@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -768,12 +767,10 @@ func getFileSize(path string) int64 {
 // 未配置 agent 名称/Pico token 时返回 nil，保留旧 cron 兼容路径。
 func newCronCoordinator(cfg *config.Config) *tools.CronRunCoordinator {
 	if cfg == nil {
-		log.Printf("[cron] coordinator disabled: nil config")
 		return nil
 	}
 	agent := strings.TrimSpace(os.Getenv(config.AgentNameEnv))
 	if agent == "" {
-		log.Printf("[cron] coordinator disabled: empty %s", config.AgentNameEnv)
 		return nil
 	}
 	var token string
@@ -791,11 +788,9 @@ func newCronCoordinator(cfg *config.Config) *tools.CronRunCoordinator {
 			}
 		}
 	} else {
-		log.Printf("[cron] coordinator disabled: no pico channel")
 		return nil
 	}
 	if token == "" {
-		log.Printf("[cron] coordinator disabled: empty pico token")
 		return nil
 	}
 	baseURL := strings.TrimSpace(os.Getenv("CHAGENT_CRON_COORDINATOR_URL"))
@@ -803,7 +798,6 @@ func newCronCoordinator(cfg *config.Config) *tools.CronRunCoordinator {
 		baseURL = "http://127.0.0.1:18079"
 	}
 	coordinator := tools.NewCronRunCoordinator(baseURL, token, agent)
-	log.Printf("[cron] coordinator agent=%q base=%q token_configured=%v enabled=%v", agent, baseURL, token != "", coordinator != nil)
 	return coordinator
 }
 

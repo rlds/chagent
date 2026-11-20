@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -615,7 +614,6 @@ func (t *CronTool) ExecuteJob(ctx context.Context, job *cron.CronJob) string {
 
 	startedAt := time.Now()
 	var claim *CronRunClaim
-	log.Printf("[cron] execute job=%s channel=%s coordinator=%v enabled=%v", job.ID, channel, t.coordinator != nil, t.coordinator != nil && t.coordinator.enabled())
 	// pico 定时任务先 Claim 新 Task/Session；不能复用旧固定 task_id。
 	if t.coordinator != nil && t.coordinator.enabled() && channel == "pico" {
 		var err error
