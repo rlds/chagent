@@ -630,6 +630,9 @@ func (t *CronTool) ExecuteJob(ctx context.Context, job *cron.CronJob) string {
 		if err := t.coordinator.Finish(ctx, claim.RunID, status, result, errText, time.Since(startedAt)); err != nil {
 			return fmt.Sprintf("错误：cron finish 失败：%v", err)
 		}
+		if status == "failed" {
+			return fmt.Sprintf("错误：%s", errText)
+		}
 		return "ok"
 	}
 
