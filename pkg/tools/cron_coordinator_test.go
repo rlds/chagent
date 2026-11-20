@@ -20,6 +20,11 @@ func TestCronTool_ExecuteJobUsesCoordinatorClaimAndFinish(t *testing.T) {
 			if got := r.Header.Get("X-Cron-Agent"); got != "daily-rounds" {
 				t.Fatalf("agent header=%q", got)
 			}
+			var claimBody map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&claimBody)
+			if claimBody["description"] != "执行巡检" {
+				t.Fatalf("claim description=%v", claimBody["description"])
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"run_id": "run-1", "task_id": "TBlfkm",
 				"session_id": "pico_user_alice_TBlfkm",

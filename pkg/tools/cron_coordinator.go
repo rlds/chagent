@@ -54,6 +54,7 @@ func (c *CronRunCoordinator) Claim(ctx context.Context, job *cron.CronJob) (*Cro
 		"scheduled_at":   cronScheduledAt(job).Format(time.RFC3339Nano),
 		"agent_nickname": c.Agent,
 		"title":          "[Cron] " + job.Name,
+		"description":    job.Payload.Message,
 	}
 	if target != nil {
 		req["owner_type"] = target.OwnerType
