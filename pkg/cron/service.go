@@ -23,10 +23,21 @@ type CronSchedule struct {
 	TZ      string `json:"tz,omitempty"`
 }
 
+type CronTarget struct {
+	OwnerType     string `json:"owner_type"` // user | agent
+	OwnerID       string `json:"owner_id"`
+	ProjectID     string `json:"project_id,omitempty"`
+	AgentNickname string `json:"agent_nickname,omitempty"`
+	Channel       string `json:"channel"`
+}
+
 type CronPayload struct {
-	Kind    string `json:"kind"`
-	Message string `json:"message"`
-	Command string `json:"command,omitempty"`
+	Kind    string      `json:"kind"`
+	Message string      `json:"message"`
+	Command string      `json:"command,omitempty"`
+	Target  *CronTarget `json:"target,omitempty"`
+
+	// 仅兼容旧数据；新任务不再写入固定 To。
 	Channel string `json:"channel,omitempty"`
 	To      string `json:"to,omitempty"`
 }

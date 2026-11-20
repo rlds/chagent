@@ -2,12 +2,14 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -761,6 +763,33 @@ func getFileSize(path string) int64 {
 	return info.Size()
 }
 
+// newCronCoordinator 构造 Client loopback 协调器。
+// 未配置 agent 名称/Pico token 时返回 nil，保留旧 cron 兼容路径。
+func newCronCoordinator(cfg *config.Config) *tools.CronRunCoordinator {
+	if cfg == nil {
+		return nil
+	}
+	agent := strings.TrimSpace(os.Getenv(config.AgentNameEnv))
+	if agent == "" {
+		return nil
+	}
+	var token string
+	if ch := cfg.Channels[config.ChannelPico]; ch != nil {
+		var settings config.PicoSettings
+		if len(ch.Settings) > 0 && json.Unmarshal(ch.Settings, &settings) == nil {
+			token = settings.Token.String()
+		}
+	}
+	if token == "" {
+		return nil
+	}
+	baseURL := strings.TrimSpace(os.Getenv("CHAGENT_CRON_COORDINATOR_URL"))
+	if baseURL == "" {
+		baseURL = "http://127.0.0.1:18079"
+	}
+	return tools.NewCronRunCoordinator(baseURL, token, agent)
+}
+
 func setupCronTool(
 	agentLoop *agent.AgentLoop,
 	msgBus *bus.MessageBus,
@@ -783,11 +812,17 @@ func setupCronTool(
 		}
 
 		agentLoop.RegisterTool(cronTool)
+		cronTool.SetCoordinator(newCronCoordinator(cfg))
 	}
 
 	if cronTool != nil {
 		cronService.SetOnJob(func(job *cron.CronJob) (string, error) {
 			result := cronTool.ExecuteJob(context.Background(), job)
+			// ExecuteJob 为兼容工具返回值是 string；Claim/Finish 失败以“错误：”返回，
+			// 必须转成 cron error，不能把投递失败记成 LastStatus=ok。
+			if strings.HasPrefix(strings.TrimSpace(result), "错误：") {
+				return result, fmt.Errorf("%s", result)
+			}
 			return result, nil
 		})
 	}

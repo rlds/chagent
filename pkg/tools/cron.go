@@ -34,6 +34,7 @@ type CronTool struct {
 	allowCommand          bool
 	execEnabled           bool
 	commandAllowedRemotes []string
+	coordinator           *CronRunCoordinator
 }
 
 // NewCronTool 创建一个新的 CronTool
@@ -72,6 +73,12 @@ func NewCronTool(
 		execEnabled:           execEnabled,
 		commandAllowedRemotes: commandAllowedRemotes,
 	}, nil
+}
+
+// SetCoordinator 注入 Client loopback cron 协调器；nil 时保留旧执行路径。
+// 仅 pico channel 的 cron 会走新 task/session 逻辑。
+func (t *CronTool) SetCoordinator(c *CronRunCoordinator) {
+	t.coordinator = c
 }
 
 // Name 返回工具名称
@@ -592,13 +599,38 @@ func (t *CronTool) ExecuteJob(ctx context.Context, job *cron.CronJob) string {
 	// 从任务 payload 中获取 channel/chatID
 	channel := job.Payload.Channel
 	chatID := job.Payload.To
+	if job.Payload.Target != nil {
+		channel = job.Payload.Target.Channel
+		chatID = ""
+	}
 
 	// 未设置时使用默认值
 	if channel == "" {
 		channel = "cli"
 	}
-	if chatID == "" {
+	if chatID == "" && channel != "pico" {
 		chatID = "direct"
+	}
+
+	startedAt := time.Now()
+	var claim *CronRunClaim
+	// pico 定时任务先 Claim 新 Task/Session；不能复用旧固定 task_id。
+	if t.coordinator != nil && t.coordinator.enabled() && channel == "pico" {
+		var err error
+		claim, err = t.coordinator.Claim(ctx, job)
+		if err != nil {
+			return fmt.Sprintf("错误：cron claim 失败：%v", err)
+		}
+		chatID = "pico:" + claim.SessionID
+	}
+	finish := func(status string, result map[string]any, errText string) string {
+		if claim == nil {
+			return "ok"
+		}
+		if err := t.coordinator.Finish(ctx, claim.RunID, status, result, errText, time.Since(startedAt)); err != nil {
+			return fmt.Sprintf("错误：cron finish 失败：%v", err)
+		}
+		return "ok"
 	}
 
 	// 如果存在命令则执行
@@ -611,7 +643,7 @@ func (t *CronTool) ExecuteJob(ctx context.Context, job *cron.CronJob) string {
 				Context: bus.NewOutboundContext(channel, chatID, ""),
 				Content: output,
 			})
-			return "ok"
+			return finish("failed", map[string]any{"output": output}, output)
 		}
 
 		args := map[string]any{
@@ -623,8 +655,11 @@ func (t *CronTool) ExecuteJob(ctx context.Context, job *cron.CronJob) string {
 
 		result := t.execTool.Execute(ctx, args)
 		var output string
+		status := "completed"
+		errText := ""
 		if result.IsError {
 			output = fmt.Sprintf("执行定时命令失败：%s", result.ForLLM)
+			status, errText = "failed", result.ForLLM
 		} else {
 			output = fmt.Sprintf("定时命令 '%s' 已执行：\n%s", job.Payload.Command, result.ForLLM)
 		}
@@ -635,10 +670,14 @@ func (t *CronTool) ExecuteJob(ctx context.Context, job *cron.CronJob) string {
 			Context: bus.NewOutboundContext(channel, chatID, ""),
 			Content: output,
 		})
-		return "ok"
+		return finish(status, map[string]any{"output": output}, errText)
 	}
 
+	// 新 cron 使用 Claim 返回的 run id 作为 session key；旧路径保持原格式。
 	sessionKey := fmt.Sprintf("agent:cron-%s-%s", job.ID, uuid.New().String())
+	if claim != nil {
+		sessionKey = "agent:cron-" + claim.RunID
+	}
 
 	// 使用任务消息调用 agent
 	response, err := t.executor.ProcessDirectWithChannel(
@@ -649,11 +688,14 @@ func (t *CronTool) ExecuteJob(ctx context.Context, job *cron.CronJob) string {
 		chatID,
 	)
 	if err != nil {
+		if claim != nil {
+			return finish("failed", nil, err.Error())
+		}
 		return fmt.Sprintf("错误：%v", err)
 	}
 
 	if response != "" {
 		t.executor.PublishResponseIfNeeded(ctx, channel, chatID, sessionKey, response, "", nil)
 	}
-	return "ok"
+	return finish("completed", map[string]any{"output": response}, "")
 }
