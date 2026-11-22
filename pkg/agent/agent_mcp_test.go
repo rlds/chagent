@@ -326,6 +326,11 @@ func TestEnsureMCPInitialized_HTTPRegistersTeamToolAndExecutes(t *testing.T) {
 	}, func(context.Context, *sdkmcp.CallToolRequest, map[string]any) (*sdkmcp.CallToolResult, any, error) {
 		return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "task-list-ok"}}}, nil, nil
 	})
+	sdkmcp.AddTool(mcpServer, &sdkmcp.Tool{
+		Name: "team_member_task_get", Description: "get team task",
+	}, func(context.Context, *sdkmcp.CallToolRequest, map[string]any) (*sdkmcp.CallToolResult, any, error) {
+		return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "task-get-ok"}}}, nil, nil
+	})
 	httpServer := httptest.NewServer(sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server {
 		return mcpServer
 	}, &sdkmcp.StreamableHTTPOptions{JSONResponse: true}))
@@ -351,22 +356,60 @@ func TestEnsureMCPInitialized_HTTPRegistersTeamToolAndExecutes(t *testing.T) {
 		t.Fatal("MCP manager is nil after initialization")
 	}
 	conn, ok := manager.GetServer("team")
-	if !ok || conn == nil || len(conn.Tools) != 1 {
+	if !ok || conn == nil || len(conn.Tools) != 2 {
 		t.Fatalf("team MCP server/tools not discovered: %+v", conn)
 	}
-	tool := agenttools.NewMCPTool(manager, "team", conn.Tools[0])
-	tool.SetWorkspace(t.TempDir())
 	agent := al.registry.GetDefaultAgent()
 	if agent == nil {
 		t.Fatal("default agent is nil")
 	}
-	if _, exists := agent.Tools.Get(tool.Name()); !exists {
-		t.Fatalf("registered agent tool %q not found", tool.Name())
-	}
-	for i := 0; i < 3; i++ {
-		result := tool.Execute(ctx, map[string]any{})
-		if result == nil || result.IsError || !strings.Contains(result.ForLLM, "task-list-ok") {
-			t.Fatalf("MCP tool call %d failed: %+v", i, result)
+	wantResults := map[string]string{"team_member_task_list": "task-list-ok", "team_member_task_get": "task-get-ok"}
+	for _, toolDef := range conn.Tools {
+		toolName := toolDef.Name
+		resultText, ok := wantResults[toolName]
+		if !ok {
+			continue
 		}
+		tool := agenttools.NewMCPTool(manager, "team", toolDef)
+		tool.SetWorkspace(t.TempDir())
+		if _, exists := agent.Tools.Get(tool.Name()); !exists {
+			t.Fatalf("registered agent tool %q not found", tool.Name())
+		}
+		for i := 0; i < 3; i++ {
+			result := tool.Execute(ctx, map[string]any{})
+			if result == nil || result.IsError || !strings.Contains(result.ForLLM, resultText) {
+				t.Fatalf("MCP tool %s call %d failed: %+v", toolName, i, result)
+			}
+		}
+	}
+}
+
+func TestEnsureMCPInitialized_HTTPToolErrorIsPropagated(t *testing.T) {
+	ctx := context.Background()
+	mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "team-error-test", Version: "1.0.0"}, nil)
+	sdkmcp.AddTool(mcpServer, &sdkmcp.Tool{Name: "team_member_task_claim", Description: "fail claim"}, func(context.Context, *sdkmcp.CallToolRequest, map[string]any) (*sdkmcp.CallToolResult, any, error) {
+		return &sdkmcp.CallToolResult{IsError: true, Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "claim rejected"}}}, nil, nil
+	})
+	httpServer := httptest.NewServer(sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server { return mcpServer }, &sdkmcp.StreamableHTTPOptions{JSONResponse: true}))
+	defer httpServer.Close()
+
+	al, cfg, _, _, cleanup := newTestAgentLoop(t)
+	defer cleanup()
+	defer al.Close()
+	cfg.Tools = config.ToolsConfig{MCP: config.MCPConfig{ToolConfig: config.ToolConfig{Enabled: true}, Servers: map[string]config.MCPServerConfig{
+		"team": {Enabled: true, Type: "http", URL: httpServer.URL},
+	}}}
+	if err := al.ensureMCPInitialized(ctx); err != nil {
+		t.Fatal(err)
+	}
+	manager := al.mcp.getManager()
+	conn, ok := manager.GetServer("team")
+	if !ok || conn == nil || len(conn.Tools) != 1 {
+		t.Fatalf("tool not discovered: %+v", conn)
+	}
+	tool := agenttools.NewMCPTool(manager, "team", conn.Tools[0])
+	result := tool.Execute(ctx, map[string]any{})
+	if result == nil || !result.IsError || !strings.Contains(result.ForLLM, "claim rejected") {
+		t.Fatalf("MCP error result not propagated: %+v", result)
 	}
 }
