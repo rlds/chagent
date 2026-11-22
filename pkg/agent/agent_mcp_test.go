@@ -9,8 +9,12 @@ package agent
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/rlds/chagent/pkg/config"
 	"github.com/rlds/chagent/pkg/mcp"
@@ -311,5 +315,58 @@ func TestEnsureMCPInitialized_LoadFailureSetsInitErr(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to load MCP servers") {
 		t.Fatalf("second ensureMCPInitialized() error = %q, want wrapped load failure", err.Error())
+	}
+}
+
+func TestEnsureMCPInitialized_HTTPRegistersTeamToolAndExecutes(t *testing.T) {
+	ctx := context.Background()
+	mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "team-test", Version: "1.0.0"}, nil)
+	sdkmcp.AddTool(mcpServer, &sdkmcp.Tool{
+		Name: "team_member_task_list", Description: "list team tasks",
+	}, func(context.Context, *sdkmcp.CallToolRequest, map[string]any) (*sdkmcp.CallToolResult, any, error) {
+		return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "task-list-ok"}}}, nil, nil
+	})
+	httpServer := httptest.NewServer(sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server {
+		return mcpServer
+	}, &sdkmcp.StreamableHTTPOptions{JSONResponse: true}))
+	defer httpServer.Close()
+
+	al, cfg, _, _, cleanup := newTestAgentLoop(t)
+	defer cleanup()
+	defer al.Close()
+	cfg.Tools = config.ToolsConfig{
+		MCP: config.MCPConfig{
+			ToolConfig: config.ToolConfig{Enabled: true},
+			Servers: map[string]config.MCPServerConfig{
+				"team": {Enabled: true, Type: "http", URL: httpServer.URL},
+			},
+		},
+	}
+
+	if err := al.ensureMCPInitialized(ctx); err != nil {
+		t.Fatalf("ensureMCPInitialized() error = %v", err)
+	}
+	manager := al.mcp.getManager()
+	if manager == nil {
+		t.Fatal("MCP manager is nil after initialization")
+	}
+	conn, ok := manager.GetServer("team")
+	if !ok || conn == nil || len(conn.Tools) != 1 {
+		t.Fatalf("team MCP server/tools not discovered: %+v", conn)
+	}
+	tool := agenttools.NewMCPTool(manager, "team", conn.Tools[0])
+	tool.SetWorkspace(t.TempDir())
+	agent := al.registry.GetDefaultAgent()
+	if agent == nil {
+		t.Fatal("default agent is nil")
+	}
+	if _, exists := agent.Tools.Get(tool.Name()); !exists {
+		t.Fatalf("registered agent tool %q not found", tool.Name())
+	}
+	for i := 0; i < 3; i++ {
+		result := tool.Execute(ctx, map[string]any{})
+		if result == nil || result.IsError || !strings.Contains(result.ForLLM, "task-list-ok") {
+			t.Fatalf("MCP tool call %d failed: %+v", i, result)
+		}
 	}
 }
