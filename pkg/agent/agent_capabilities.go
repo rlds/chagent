@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -15,11 +16,18 @@ type CapabilitySnapshot struct {
 	Workspace    string                `json:"workspace"`
 	PID          int                   `json:"pid"`
 	Tools        []string              `json:"tools"`
+	Skills       []CapabilitySkill     `json:"skills"`
 	MCPServers   []CapabilityMCPServer `json:"mcp_servers"`
 	ReadPaths    []string              `json:"read_paths"`
 	WritePaths   []string              `json:"write_paths"`
 	ReportedAt   time.Time             `json:"reported_at"`
 	MCPInitError string                `json:"mcp_init_error,omitempty"`
+}
+
+type CapabilitySkill struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Source      string `json:"source,omitempty"`
 }
 
 type CapabilityMCPServer struct {
@@ -46,8 +54,22 @@ func (al *AgentLoop) CapabilitySnapshot(ctx context.Context) CapabilitySnapshot 
 	if err := al.ensureMCPInitialized(ctx); err != nil {
 		snapshot.MCPInitError = err.Error()
 	}
-	if agent := al.registry.GetDefaultAgent(); agent != nil && agent.Tools != nil {
-		snapshot.Tools = agent.Tools.List()
+	if agent := al.registry.GetDefaultAgent(); agent != nil {
+		if agent.Tools != nil {
+			snapshot.Tools = agent.Tools.List()
+		}
+		if agent.ContextBuilder != nil {
+			if loader := agent.ContextBuilder.SkillLoader(); loader != nil {
+				for _, skill := range loader.ListSkills() {
+					if len(agent.SkillsFilter) > 0 && !containsStringFold(agent.SkillsFilter, skill.Name) {
+						continue
+					}
+					snapshot.Skills = append(snapshot.Skills, CapabilitySkill{
+						Name: skill.Name, Description: skill.Description, Source: skill.Source,
+					})
+				}
+			}
+		}
 	}
 	if manager := al.mcp.getManager(); manager != nil {
 		for name, conn := range manager.GetServers() {
@@ -63,4 +85,13 @@ func (al *AgentLoop) CapabilitySnapshot(ctx context.Context) CapabilitySnapshot 
 		}
 	}
 	return snapshot
+}
+
+func containsStringFold(values []string, target string) bool {
+	for _, value := range values {
+		if strings.EqualFold(strings.TrimSpace(value), strings.TrimSpace(target)) {
+			return true
+		}
+	}
+	return false
 }
