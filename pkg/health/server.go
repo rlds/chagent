@@ -21,6 +21,7 @@ type Server struct {
 	startTime  time.Time
 	reloadFunc func() error
 	authToken  string // 用于受保护端点的可选 bearer 令牌
+	capability func() any
 }
 
 type Check struct {
@@ -49,6 +50,7 @@ func NewServer(host string, port int, token string) *Server {
 	mux.HandleFunc("/health", s.healthHandler)
 	mux.HandleFunc("/ready", s.readyHandler)
 	mux.HandleFunc("/reload", s.reloadHandler)
+	mux.HandleFunc("/capabilities", s.capabilitiesHandler)
 
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	s.server = &http.Server{
@@ -110,6 +112,32 @@ func (s *Server) RegisterCheck(name string, checkFn func() (bool, string)) {
 		Message:   msg,
 		Timestamp: time.Now(),
 	}
+}
+
+// SetCapabilityProvider 设置 Agent 运行能力快照提供器。
+func (s *Server) SetCapabilityProvider(fn func() any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.capability = fn
+}
+
+func (s *Server) capabilitiesHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "method not allowed"})
+		return
+	}
+	s.mu.RLock()
+	provider := s.capability
+	s.mu.RUnlock()
+	if provider == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "capability provider not configured"})
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(provider())
 }
 
 // SetReloadFunc 设置配置重载的回调函数。
@@ -231,6 +259,7 @@ func (s *Server) RegisterOnMux(mux HandlerMux) {
 	mux.HandleFunc("/health", s.healthHandler)
 	mux.HandleFunc("/ready", s.readyHandler)
 	mux.HandleFunc("/reload", s.reloadHandler)
+	mux.HandleFunc("/capabilities", s.capabilitiesHandler)
 }
 
 func statusString(ok bool) string {

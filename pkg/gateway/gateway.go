@@ -210,6 +210,9 @@ func runGateway(
 	// 因此 Health.Server.Start()（否则会设置此标志）永远不会被调用——
 	// 我们在这里显式翻转该标志。
 	runningServices.HealthServer.SetReady(true)
+	runningServices.HealthServer.SetCapabilityProvider(func() any {
+		return agentLoop.CapabilitySnapshot(context.Background())
+	})
 	publishGatewayEvent(agentLoop, runtimeevents.KindGatewayReady, startedAt, nil)
 	closeListeners = false
 
