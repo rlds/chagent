@@ -17,7 +17,6 @@ import (
 	"github.com/rlds/chagent/pkg/bus"
 	"github.com/rlds/chagent/pkg/config"
 	runtimeevents "github.com/rlds/chagent/pkg/events"
-	"github.com/rlds/chagent/pkg/netbind"
 	"github.com/rlds/chagent/pkg/providers"
 )
 
@@ -257,28 +256,6 @@ func TestSetupCronToolExecConfigError(t *testing.T) {
 	}
 }
 
-func TestSetupAndStartServicesCronStartError(t *testing.T) {
-	cfg := config.DefaultConfig()
-	workspace := t.TempDir()
-	cfg.Agents.Defaults.Workspace = workspace
-	cfg.Gateway.Host = "127.0.0.1"
-	cfg.Gateway.Port = 0
-	// A regular file where the cron store directory is expected makes
-	// CronService.Start fail after successful CronTool creation.
-	if err := os.WriteFile(filepath.Join(workspace, "cron"), []byte("not-a-dir"), 0o600); err != nil {
-		t.Fatalf("write cron file: %v", err)
-	}
-	msgBus := bus.NewMessageBus()
-	al := agent.NewAgentLoop(cfg, msgBus, &startupBlockedProvider{reason: "not used"})
-	t.Cleanup(al.Close)
-
-	_, err := setupAndStartServices(cfg, al, msgBus, "token",
-		netbind.OpenResult{ProbeHost: "127.0.0.1", Port: "0"}, 0)
-	if err == nil || !strings.Contains(err.Error(), "error starting cron service") {
-		t.Fatalf("setupAndStartServices error = %v, want cron start error", err)
-	}
-}
-
 func TestGatewayPicoChannelLifecycle(t *testing.T) {
 	// Enabling the pico channel in config exercises the "channels enabled"
 	// startup branch and the pico channel start/stop path inside runGateway.
@@ -309,36 +286,6 @@ func TestShutdownGatewayClosesStatefulProvider(t *testing.T) {
 	shutdownGateway(&services{}, al, provider, msgBus, true)
 	if !provider.closed {
 		t.Fatal("stateful provider Close() was not called during full shutdown")
-	}
-}
-
-func TestRestartServicesCronErrorBranches(t *testing.T) {
-	// cron start error
-	cfg := config.DefaultConfig()
-	workspace := t.TempDir()
-	cfg.Agents.Defaults.Workspace = workspace
-	if err := os.WriteFile(filepath.Join(workspace, "cron"), []byte("not-a-dir"), 0o600); err != nil {
-		t.Fatalf("write cron file: %v", err)
-	}
-	msgBus := bus.NewMessageBus()
-	al := agent.NewAgentLoop(cfg, msgBus, &startupBlockedProvider{reason: "not used"})
-	t.Cleanup(al.Close)
-	err := restartServices(al, &services{}, msgBus)
-	if err == nil || !strings.Contains(err.Error(), "error restarting cron service") {
-		t.Fatalf("restartServices error = %v, want cron restart error", err)
-	}
-
-	// cron tool initialization error
-	cfg2 := config.DefaultConfig()
-	cfg2.Agents.Defaults.Workspace = t.TempDir()
-	cfg2.Tools.Exec.EnableDenyPatterns = true
-	cfg2.Tools.Exec.CustomDenyPatterns = []string{"("}
-	msgBus2 := bus.NewMessageBus()
-	al2 := agent.NewAgentLoop(cfg2, msgBus2, &startupBlockedProvider{reason: "not used"})
-	t.Cleanup(al2.Close)
-	err = restartServices(al2, &services{}, msgBus2)
-	if err == nil || !strings.Contains(err.Error(), "error restarting cron service") {
-		t.Fatalf("restartServices error = %v, want cron tool init error", err)
 	}
 }
 
@@ -477,19 +424,6 @@ func TestGatewayProviderCreationFailure(t *testing.T) {
 
 // TestGatewayServiceSetupFailure covers a setupAndStartServices failure during
 // startup: the cron store path is a regular file, so CronService.Start fails.
-func TestGatewayServiceSetupFailure(t *testing.T) {
-	dir := t.TempDir()
-	home, workspace, configPath := writeGatewayTestConfig(t, dir, nil)
-	if err := os.WriteFile(filepath.Join(workspace, "cron"), []byte("not-a-dir"), 0o600); err != nil {
-		t.Fatalf("write cron file: %v", err)
-	}
-	sig := make(chan os.Signal, 1)
-	err := runGateway(false, home, configPath, false, sig)
-	if err == nil || !strings.Contains(err.Error(), "error starting cron service") {
-		t.Fatalf("runGateway error = %v, want cron service start error", err)
-	}
-}
-
 // TestGatewayPidWriteFailureClosesListeners covers the pid-file write failure
 // path: listeners are opened first, the pid write fails (read-only workspace)
 // and the already-opened listeners are closed again before returning.
@@ -601,26 +535,6 @@ func TestGatewayConcurrentReloadCalls(t *testing.T) {
 		t.Fatal("gateway health lost after concurrent reload calls")
 	}
 	proc.stopAndWait(t, 5*time.Second)
-}
-
-// TestSetupAndStartServicesCronToolError covers setupCronTool returning an
-// error inside setupAndStartServices (invalid exec deny pattern).
-func TestSetupAndStartServicesCronToolError(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = t.TempDir()
-	cfg.Gateway.Host = "127.0.0.1"
-	cfg.Gateway.Port = 0
-	cfg.Tools.Exec.EnableDenyPatterns = true
-	cfg.Tools.Exec.CustomDenyPatterns = []string{"("}
-	msgBus := bus.NewMessageBus()
-	al := agent.NewAgentLoop(cfg, msgBus, &startupBlockedProvider{reason: "not used"})
-	t.Cleanup(al.Close)
-
-	_, err := setupAndStartServices(cfg, al, msgBus, "token",
-		netbind.OpenResult{ProbeHost: "127.0.0.1", Port: "0"}, 0)
-	if err == nil || !strings.Contains(err.Error(), "error setting up cron service") {
-		t.Fatalf("setupAndStartServices error = %v, want cron setup error", err)
-	}
 }
 
 // TestGatewayHotReloadWatcherDebugLog covers the watcher's debug-only

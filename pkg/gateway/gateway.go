@@ -409,23 +409,9 @@ func setupAndStartServices(
 ) (*services, error) {
 	runningServices := &services{}
 
-	execTimeout := time.Duration(cfg.Tools.Cron.ExecTimeoutMinutes) * time.Minute
+	// chagent 只服务 Pico；定时调度统一由 Server 负责，本地 cron service/tool 不再启动。
+	// 保留 services.CronService 字段以兼容生命周期/测试中的 nil 清理。
 	var err error
-	runningServices.CronService, err = setupCronTool(
-		agentLoop,
-		msgBus,
-		cfg.WorkspacePath(),
-		cfg.Agents.Defaults.RestrictToWorkspace,
-		execTimeout,
-		cfg,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("error setting up cron service: %w", err)
-	}
-	if err = runningServices.CronService.Start(); err != nil {
-		return nil, fmt.Errorf("error starting cron service: %w", err)
-	}
-	fmt.Println("✓ Cron service started")
 
 	runningServices.HeartbeatService = heartbeat.NewHeartbeatService(
 		cfg.WorkspacePath(),
@@ -621,23 +607,8 @@ func restartServices(
 ) error {
 	cfg := al.GetConfig()
 
-	execTimeout := time.Duration(cfg.Tools.Cron.ExecTimeoutMinutes) * time.Minute
+	// Pico-only：cron 由 Server 统一调度，本地不重启 cron service。
 	var err error
-	runningServices.CronService, err = setupCronTool(
-		al,
-		msgBus,
-		cfg.WorkspacePath(),
-		cfg.Agents.Defaults.RestrictToWorkspace,
-		execTimeout,
-		cfg,
-	)
-	if err != nil {
-		return fmt.Errorf("error restarting cron service: %w", err)
-	}
-	if err = runningServices.CronService.Start(); err != nil {
-		return fmt.Errorf("error restarting cron service: %w", err)
-	}
-	fmt.Println("  ✓ Cron service restarted")
 
 	runningServices.HeartbeatService = heartbeat.NewHeartbeatService(
 		cfg.WorkspacePath(),

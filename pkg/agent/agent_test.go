@@ -6192,53 +6192,6 @@ func TestProcessMessage_DoesNotPublishToolFeedbackForFeishuWhenDisabled(t *testi
 	assertToolFeedbackNotPublishedWhenDisabled(t, "feishu")
 }
 
-func TestProcessMessage_MessageToolPublishesOutboundWithTurnMetadata(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = t.TempDir()
-	cfg.Agents.Defaults.ModelName = "test-model"
-	cfg.Agents.Defaults.MaxTokens = 4096
-	cfg.Agents.Defaults.MaxToolIterations = 10
-	cfg.Session.Dimensions = []string{"chat"}
-
-	msgBus := bus.NewMessageBus()
-	provider := &messageToolProvider{}
-	al := NewAgentLoop(cfg, msgBus, provider)
-
-	response, _, _, err := al.processMessage(context.Background(), testInboundMessage(bus.InboundMessage{
-		Channel:  "telegram",
-		SenderID: "user-1",
-		ChatID:   "chat-1",
-		Content:  "send a direct message",
-	}))
-	if err != nil {
-		t.Fatalf("processMessage() error = %v", err)
-	}
-	if response == "" {
-		t.Fatal("expected processMessage() to return a final loop response")
-	}
-
-	select {
-	case outbound := <-msgBus.OutboundChan():
-		if outbound.Content != "direct tool message" {
-			t.Fatalf("outbound content = %q, want direct tool message", outbound.Content)
-		}
-		if outbound.AgentID != "main" {
-			t.Fatalf("outbound agent_id = %q, want main", outbound.AgentID)
-		}
-		if outbound.SessionKey == "" {
-			t.Fatal("expected message tool outbound to carry session_key")
-		}
-		if outbound.Scope == nil || outbound.Scope.Values["chat"] != "direct:chat-1" {
-			t.Fatalf("unexpected message tool outbound scope: %+v", outbound.Scope)
-		}
-		if outbound.Context.Channel != "telegram" || outbound.Context.ChatID != "chat-1" {
-			t.Fatalf("unexpected message tool outbound context: %+v", outbound.Context)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("expected message tool outbound")
-	}
-}
-
 func TestRun_PicoPublishesAssistantContentDuringToolCallsWithoutFinalDuplicate(t *testing.T) {
 	tmpDir := t.TempDir()
 

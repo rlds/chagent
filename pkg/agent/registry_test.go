@@ -218,7 +218,7 @@ func TestNewAgentLoop_AgentToolAllowlistFiltersRuntimeTools(t *testing.T) {
 
 	researchWorkspace := setupWorkspace(t, map[string]string{
 		"AGENT.md": `---
-tools: [read_file, write_file, web_search, web_fetch, message]
+tools: [read_file, write_file, web_search, web_fetch]
 skills: [deep-research]
 ---
 # Agent
@@ -240,7 +240,6 @@ Research agent.
 	cfg.Tools.WriteFile.Enabled = true
 	cfg.Tools.ListDir.Enabled = true
 	cfg.Tools.Exec.Enabled = true
-	cfg.Tools.Message.Enabled = true
 	cfg.Tools.Web.Enabled = true
 	cfg.Tools.Web.DuckDuckGo.Enabled = true
 	cfg.Tools.WebFetch.Enabled = true
@@ -256,7 +255,7 @@ Research agent.
 	}
 
 	got := research.Tools.List()
-	want := []string{"message", "read_file", "web_fetch", "web_search", "write_file"}
+	want := []string{"read_file", "web_fetch", "web_search", "write_file"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("research tools = %v, want %v", got, want)
 	}
@@ -309,5 +308,25 @@ Research agent.
 	}
 	if slices.Contains(research.Tools.List(), "web_search") {
 		t.Fatalf("research tools = %v, expected web_search to be absent", research.Tools.List())
+	}
+}
+
+func TestNewAgentLoop_DoesNotRegisterPicoRemovedTools(t *testing.T) {
+	workspace := setupWorkspace(t, map[string]string{"AGENT.md": "# Agent\n"})
+	defer cleanupWorkspace(t, workspace)
+	cfg := testCfg(nil)
+	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Tools.Message.Enabled = true
+	cfg.Tools.Cron.Enabled = true
+	al := NewAgentLoop(cfg, bus.NewMessageBus(), &mockRegistryProvider{})
+	defer al.Close()
+	agent := al.GetRegistry().GetDefaultAgent()
+	if agent == nil {
+		t.Fatal("default agent missing")
+	}
+	for _, name := range []string{"message", "cron"} {
+		if _, ok := agent.Tools.Get(name); ok {
+			t.Fatalf("Pico-only chagent must not register removed tool %q", name)
+		}
 	}
 }
