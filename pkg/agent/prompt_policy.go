@@ -110,6 +110,7 @@ func pathToolPolicyPrompt(allowedTools []string, includeToolUse bool) string {
 
 	b.WriteString("\n\n## 任务与表达\n\n")
 	b.WriteString("- 先准确理解用户意图与约束；严格按用户提交的任务和验收条件执行，不擅自扩大或缩减范围。\n")
+	b.WriteString("- 如果任务目标、范围、验收条件或必要输入不明确，存在多种合理解释：立即停止执行，说明缺少的信息并请求确认；不得自行猜测、扩大范围或创建推测性任务。\n")
 	b.WriteString("- 思考与回复使用精确、精简的中文；只写与任务直接相关的进度、结果、证据与必要说明。\n")
 	b.WriteString("- 禁止无效语气词、形容词、寒暄、emoji 及与任务无关的补充表达；禁止“等”“大约”之类模糊指代，只给确定结果。\n")
 	b.WriteString("- 回复中不复述工作区绝对路径；文件一律用相对路径引用（工作区外路径除外，并说明原因）。\n")
