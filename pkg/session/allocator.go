@@ -39,6 +39,15 @@ func AllocateRouteSession(input AllocationInput) Allocation {
 	}
 }
 
+func containsDimension(dimensions []string, target string) bool {
+	for _, d := range dimensions {
+		if strings.EqualFold(strings.TrimSpace(d), target) {
+			return true
+		}
+	}
+	return false
+}
+
 func buildSessionScope(input AllocationInput) SessionScope {
 	inbound := input.Context
 	includeTopicInChatDimension := shouldPreserveTelegramForumIsolation(input)
@@ -98,6 +107,21 @@ func buildSessionScope(input AllocationInput) SessionScope {
 			}
 			dimensions = append(dimensions, "sender")
 			values["sender"] = senderID
+		}
+	}
+
+	// Pico 的 chatID 已经是 "pico:<sessionID>"，而 sessionID 由 Client 按
+	// user+project+task 生成。默认 dm_scope=per-peer（仅 sender 维度）会把同一
+	// Agent 的所有任务折叠进同一个会话，导致多任务串行/steering；这里强制为
+	// pico 增加 chat 维度，保证不同任务会话真正并行、上下文互不污染。
+	if strings.EqualFold(scope.Channel, "pico") && !containsDimension(dimensions, "chat") {
+		if chatID := strings.TrimSpace(inbound.ChatID); chatID != "" {
+			chatType := strings.ToLower(strings.TrimSpace(inbound.ChatType))
+			if chatType == "" {
+				chatType = "direct"
+			}
+			dimensions = append(dimensions, "chat")
+			values["chat"] = fmt.Sprintf("%s:%s", chatType, strings.ToLower(chatID))
 		}
 	}
 

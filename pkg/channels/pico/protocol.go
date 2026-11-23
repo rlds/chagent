@@ -16,11 +16,14 @@ const (
 	TypeMessageCreate = "message.create"
 	TypeMessageUpdate = "message.update"
 	TypeMessageDelete = "message.delete"
-	TypeMediaCreate   = "media.create"
-	TypeTypingStart   = "typing.start"
-	TypeTypingStop    = "typing.stop"
-	TypeError         = "error"
-	TypePong          = "pong"
+	// TypeMessageAck 是服务端对 message.send 的受理确认。
+	// 仅当请求方在载荷中设置 ack=true（新版 Client）时回发，兼容旧客户端。
+	TypeMessageAck  = "message.ack"
+	TypeMediaCreate = "media.create"
+	TypeTypingStart = "typing.start"
+	TypeTypingStop  = "typing.stop"
+	TypeError       = "error"
+	TypePong        = "pong"
 
 	// TypeExecutionReport 由 chagent 发往 pico 对端：一次工具执行的完成上报。
 	// 它与 message.* 并列，不是聊天消息：不进入会话历史，也不参与消息编辑/删除。

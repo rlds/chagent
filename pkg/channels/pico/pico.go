@@ -121,8 +121,12 @@ type PicoChannel struct {
 	connsMu            sync.RWMutex
 	// sentMessageIDs 防止同一 message.create 被重复广播（chagent 命令/收尾路径
 	// 可能重复发布同一个 OutboundMessage）。
-	sentMessageIDs  map[string]time.Time
-	sentMu          sync.Mutex
+	sentMessageIDs map[string]time.Time
+	sentMu         sync.Mutex
+	// inboundSeen 是入站 message_id 幂等表：Client 在连接异常（1006/EOF）后
+	// 会用同一 message_id 重投，重复消息只回 ack，不再触发第二轮 Agent 执行。
+	inboundSeen     map[string]time.Time
+	inboundSeenMu   sync.Mutex
 	ctx             context.Context
 	cancel          context.CancelFunc
 	progress        *channels.ToolFeedbackAnimator
@@ -167,6 +171,7 @@ func NewPicoChannel(
 		connections:        make(map[string]*picoConn),
 		sessionConnections: make(map[string]map[string]*picoConn),
 		sentMessageIDs:     make(map[string]time.Time),
+		inboundSeen:        make(map[string]time.Time),
 	}
 	ch.progress = channels.NewToolFeedbackAnimator(ch.EditMessage)
 	ch.deleteMessageFn = ch.DeleteMessage
@@ -1391,17 +1396,61 @@ func (c *PicoChannel) handleMessageSend(pc *picoConn, msg PicoMessage) {
 	if !c.IsAllowedSender(sender) {
 		return
 	}
+	// 入站 message_id 幂等：新版 Client 在载荷里带 message_id，连接异常（1006/EOF）
+	// 后会用同一 message_id 重投；这里只回 ack，不重复进入 Agent 执行队列。
+	// 旧版 Client 没有该字段：保持原有行为，不做去重。
+	messageID, _ := msg.Payload["message_id"].(string)
+	messageID = strings.TrimSpace(messageID)
+	ackRequested, _ := msg.Payload["ack"].(bool)
+	if messageID != "" && !c.acceptInboundMessage(sessionID, messageID) {
+		logger.InfoCF("pico", "Duplicate inbound message ignored", map[string]any{
+			"session_id": sessionID,
+			"message_id": messageID,
+		})
+		if ackRequested {
+			pc.writeJSON(newMessage(TypeMessageAck, map[string]any{"message_id": messageID}))
+		}
+		return
+	}
 
+	inboundMessageID := messageID
+	if inboundMessageID == "" {
+		inboundMessageID = msg.ID
+	}
 	inboundCtx := bus.InboundContext{
 		Channel:   "pico",
 		ChatID:    chatID,
 		ChatType:  "direct",
 		SenderID:  senderID,
-		MessageID: msg.ID,
+		MessageID: inboundMessageID,
 		Raw:       metadata,
 	}
 
 	c.HandleInboundContext(c.ctx, chatID, content, media, inboundCtx, sender)
+	// 已进入 Agent 入站总线后再回 ack：Client 收到即确认“已受理”，
+	// 后续 thought/tool/final 由只读 monitor 连接统一消费。
+	if ackRequested {
+		pc.writeJSON(newMessage(TypeMessageAck, map[string]any{"message_id": messageID}))
+	}
+}
+
+// acceptInboundMessage 登记一条入站消息；首次出现返回 true，重复返回 false。
+// 表按 session+message_id 去重并在 30 分钟后过期，避免无界增长。
+func (c *PicoChannel) acceptInboundMessage(sessionID, messageID string) bool {
+	key := sessionID + "|" + messageID
+	now := time.Now()
+	c.inboundSeenMu.Lock()
+	defer c.inboundSeenMu.Unlock()
+	for k, t := range c.inboundSeen {
+		if now.Sub(t) > 30*time.Minute {
+			delete(c.inboundSeen, k)
+		}
+	}
+	if _, ok := c.inboundSeen[key]; ok {
+		return false
+	}
+	c.inboundSeen[key] = now
+	return true
 }
 
 // truncate 将字符串截断到 maxLen 个 rune。

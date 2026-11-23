@@ -158,3 +158,33 @@ func containsAlias(aliases []string, want string) bool {
 	}
 	return false
 }
+
+// TestAllocateRouteSession_PicoForcesChatDimension 回归 P0-2：
+// 默认 dm_scope=per-peer（仅 sender）会让同一 Agent 的所有 pico 任务共享一个
+// 会话，导致多任务被 steering 串行化。pico 必须强制加入 chat 维度（sessionID
+// 已包含 user+project+task），不同任务得到不同 SessionKey。
+func TestAllocateRouteSession_PicoForcesChatDimension(t *testing.T) {
+	policy := routing.SessionPolicy{Dimensions: []string{"sender"}}
+	a := AllocateRouteSession(AllocationInput{
+		AgentID: "docs-curator-1012",
+		Context: bus.InboundContext{
+			Channel: "pico", ChatType: "direct", SenderID: "pico-user",
+			ChatID: "pico:pico_user_diaryi_TBlfOe",
+		},
+		SessionPolicy: policy,
+	})
+	b := AllocateRouteSession(AllocationInput{
+		AgentID: "docs-curator-1012",
+		Context: bus.InboundContext{
+			Channel: "pico", ChatType: "direct", SenderID: "pico-user",
+			ChatID: "pico:pico_user_diaryi_TBlfOv",
+		},
+		SessionPolicy: policy,
+	})
+	if a.SessionKey == b.SessionKey {
+		t.Fatalf("pico tasks share session key %q; they must be isolated per chat", a.SessionKey)
+	}
+	if !containsDimension(a.Scope.Dimensions, "chat") {
+		t.Fatalf("pico scope dimensions = %v, want chat", a.Scope.Dimensions)
+	}
+}
