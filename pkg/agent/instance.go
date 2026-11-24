@@ -322,6 +322,10 @@ func NewAgentInstance(
 		summarizeTokenPercent = 75
 	}
 
+	// 模型条目上的 fallbacks 也参与候选链（agent 级 fallbacks 优先排前）。
+	if modelCfgErr == nil && modelCfg != nil && len(modelCfg.Fallbacks) > 0 {
+		fallbacks = append(append([]string(nil), fallbacks...), modelCfg.Fallbacks...)
+	}
 	// 解析回退候选。
 	candidates := resolveModelCandidates(cfg, defaults.Provider, model, fallbacks)
 	imageCandidates := resolveModelCandidates(
