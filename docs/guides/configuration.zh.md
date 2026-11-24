@@ -70,7 +70,7 @@ pico 通道内置：`config.json` 不需要 `channels` 与 token。网关与外�
 | `agents.defaults.context_window` | `max_tokens * 4` | 未显式配置时按输出预留 4 倍估算 |
 | `agents.defaults.steering_mode` | `all` | 运行中插入用户消息的策略 |
 | `agents.defaults.max_parallel_turns` | 20 | 并发 turn 上限 |
-| `agents.defaults.max_llm_retries` | 2 | 同路由瞬时错误重试次数 |
+| `agents.defaults.max_llm_retries` | 6 | 同路由瞬时错误重试次数（总请求次数为 1+6） |
 | `agents.defaults.llm_retry_backoff_secs` | 2 | 重试退避基数（秒，线性） |
 
 ### 3.2 上下文（workspace / runtime / autonomy）

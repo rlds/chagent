@@ -40,7 +40,7 @@ func DefaultConfig() *Config {
 					SeparateMessages: false,
 				},
 				SplitOnMarker:       false,
-				MaxLLMRetries:       2,
+				MaxLLMRetries:       6,
 				LLMRetryBackoffSecs: 2,
 				WorkspaceContext:    DefaultWorkspaceContextConfig(),
 				RuntimeContext:      DefaultRuntimeContextConfig(),
