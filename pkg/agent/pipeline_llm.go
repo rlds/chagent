@@ -266,12 +266,14 @@ func (p *Pipeline) CallLLM(
 
 	// 重试循环
 	var err error
+	// max_llm_retries <= 0 视为未配置并使用默认 2（历史兼容）。
+	// llm_retry_backoff_secs=0 表示立即重试、不等待；缺省时加载器已填入 2。
 	maxRetries := p.Cfg.Agents.Defaults.MaxLLMRetries
 	if maxRetries <= 0 {
 		maxRetries = 2
 	}
 	backoffSecs := p.Cfg.Agents.Defaults.LLMRetryBackoffSecs
-	if backoffSecs <= 0 {
+	if backoffSecs < 0 {
 		backoffSecs = 2
 	}
 	for retry := 0; retry <= maxRetries; retry++ {
