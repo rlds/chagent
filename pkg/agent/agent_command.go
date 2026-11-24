@@ -310,16 +310,23 @@ func (al *AgentLoop) buildCommandsRuntime(
 				return "", fmt.Errorf("初始化模型 %q 失败：%w", value, err)
 			}
 
-			nextCandidates := resolveModelCandidates(cfg, cfg.Agents.Defaults.Provider, value, agent.Fallbacks)
+			// 切换主模型必须重新解析该模型条目自己的 fallbacks；不能复用
+			// 旧 Agent 的候选链，否则 /model 后仍请求旧模型。
+			nextFallbacks := append([]string(nil), agent.Fallbacks...)
+			nextFallbacks = append(nextFallbacks, modelCfg.Fallbacks...)
+			nextCandidates := resolveModelCandidates(cfg, cfg.Agents.Defaults.Provider, value, nextFallbacks)
 			if len(nextCandidates) == 0 {
 				return "", fmt.Errorf("模型 %q 未解析出任何 provider 候选", value)
 			}
+			nextCandidateProviders := map[string]providers.LLMProvider{}
+			populateCandidateProvidersFromNames(cfg, agent.Workspace, nextFallbacks, nextCandidateProviders)
 
 			oldModel := agent.Model
 			oldProvider := agent.Provider
 			agent.Model = value
 			agent.Provider = nextProvider
 			agent.Candidates = nextCandidates
+			agent.CandidateProviders = nextCandidateProviders
 			agent.ThinkingLevel = parseThinkingLevel(modelCfg.ThinkingLevel)
 			agent.ThinkingLevelConfigured = isConfiguredThinkingLevel(modelCfg.ThinkingLevel)
 			if modelCfg.ContextWindow > 0 {

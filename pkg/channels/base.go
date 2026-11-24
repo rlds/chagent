@@ -261,7 +261,7 @@ func (c *BaseChannel) HandleMessageWithContext(
 	media []string,
 	inboundCtx bus.InboundContext,
 	senderOpts ...bus.SenderInfo,
-) {
+) error {
 	// 可用时基于 SenderInfo 做允许检查，否则回退到字符串检查
 	var sender bus.SenderInfo
 	if len(senderOpts) > 0 {
@@ -270,11 +270,11 @@ func (c *BaseChannel) HandleMessageWithContext(
 	senderID := strings.TrimSpace(inboundCtx.SenderID)
 	if sender.CanonicalID != "" || sender.PlatformID != "" {
 		if !c.IsAllowedSender(sender) {
-			return
+			return nil
 		}
 	} else {
 		if !c.IsAllowed(senderID) {
-			return
+			return nil
 		}
 	}
 
@@ -340,7 +340,9 @@ func (c *BaseChannel) HandleMessageWithContext(
 			"chat_id": deliveryChatID,
 			"error":   err.Error(),
 		})
+		return err
 	}
+	return nil
 }
 
 // HandleInboundContext 仅使用结构化上下文发布一条规范化后的入站消息。
@@ -350,8 +352,8 @@ func (c *BaseChannel) HandleInboundContext(
 	media []string,
 	inboundCtx bus.InboundContext,
 	senderOpts ...bus.SenderInfo,
-) {
-	c.HandleMessageWithContext(ctx, deliveryChatID, content, media, inboundCtx, senderOpts...)
+) error {
+	return c.HandleMessageWithContext(ctx, deliveryChatID, content, media, inboundCtx, senderOpts...)
 }
 
 func (c *BaseChannel) SetRunning(running bool) {

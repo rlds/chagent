@@ -1426,12 +1426,28 @@ func (c *PicoChannel) handleMessageSend(pc *picoConn, msg PicoMessage) {
 		Raw:       metadata,
 	}
 
-	c.HandleInboundContext(c.ctx, chatID, content, media, inboundCtx, sender)
+	if err := c.HandleInboundContext(c.ctx, chatID, content, media, inboundCtx, sender); err != nil {
+		// publish 失败不得 ack：Client 会重投同一 message_id；先撤销去重记录。
+		c.forgetInboundMessage(sessionID, messageID)
+		logger.WarnCF("pico", "Inbound publish failed; not acknowledging", map[string]any{
+			"message_id": messageID, "error": err.Error(),
+		})
+		return
+	}
 	// 已进入 Agent 入站总线后再回 ack：Client 收到即确认“已受理”，
 	// 后续 thought/tool/final 由只读 monitor 连接统一消费。
 	if ackRequested {
 		pc.writeJSON(newMessage(TypeMessageAck, map[string]any{"message_id": messageID}))
 	}
+}
+
+func (c *PicoChannel) forgetInboundMessage(sessionID, messageID string) {
+	if strings.TrimSpace(messageID) == "" {
+		return
+	}
+	c.inboundSeenMu.Lock()
+	delete(c.inboundSeen, sessionID+"|"+messageID)
+	c.inboundSeenMu.Unlock()
 }
 
 // acceptInboundMessage 登记一条入站消息；首次出现返回 true，重复返回 false。
